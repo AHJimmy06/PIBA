@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="piba_alabanza.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+</Solution>

@@ -2,16 +2,13 @@ import type { RehearsalRepository } from "../domain/ports/RehearsalRepository";
 import type { UserRepository } from "../domain/ports/UserRepository";
 
 export class StartRehearsalUseCase {
-  // 1. Declaramos las propiedades privadas aquí arriba (esto sí se borra al compilar)
   private rehearsalRepository: RehearsalRepository;
   private userRepository: UserRepository;
 
-  // 2. Quitamos la palabra "private" de los parámetros del constructor
   constructor(
     rehearsalRepository: RehearsalRepository,
     userRepository: UserRepository,
   ) {
-    // 3. Hacemos la asignación manual
     this.rehearsalRepository = rehearsalRepository;
     this.userRepository = userRepository;
   }

@@ -1,7 +1,7 @@
 import type { User } from './User';
 import type { Song } from './Song';
 
-export type RehearsalStatus = 'PENDING' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED';
+export type RehearsalStatus = 'PENDING' | 'IN_PROGRESS' | 'PAUSED' | 'READY' | 'COMPLETED';
 
 // Define los acordes adaptados por un instrumento específico
 export interface RehearsalSongChord {

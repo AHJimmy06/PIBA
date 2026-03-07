@@ -13,7 +13,6 @@ export class UpdateCustomChordsUseCase {
     instrument: string,
     newChords: string,
   ): Promise<void> {
-    // Aquí el dominio podría validar que los acordes no estén vacíos
     if (!newChords.trim()) {
       throw new Error("Los acordes no pueden estar vacíos.");
     }

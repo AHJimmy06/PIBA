@@ -15,4 +15,7 @@ export interface RehearsalRepository {
 
     // Guarda los acordes específicos ajustados por un instrumento en una canción de este repaso
     saveCustomChords(rehearsalId: string, songId: string, instrument: string, chords: string): Promise<void>;
+
+    // Elimina un ensayo y todas sus relaciones asociadas
+    delete(id: string): Promise<void>;
 }

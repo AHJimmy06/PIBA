@@ -36,3 +36,6 @@ dist-ssr
 # OS metadata
 Thumbs.db
 Desktop.ini
+
+# AI Context
+GEMINI.md

@@ -17,7 +17,9 @@ import {
   Zap,
   Activity,
   Trash2,
-  Settings
+  Settings,
+  UserPlus,
+  Edit
 } from 'lucide-react';
 import { 
   Card, 
@@ -39,7 +41,6 @@ export const DashboardView: React.FC = () => {
   const [rehearsals, setRehearsals] = useState<Rehearsal[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Estados para modales
   const [rehearsalToDelete, setRehearsalToDelete] = useState<Rehearsal | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -65,10 +66,11 @@ export const DashboardView: React.FC = () => {
     navigate('/');
   };
 
-  const handleUpdateProfile = async (updatedUser: User) => {
+  const handleUpdateProfile = async (updatedUser: User): Promise<User> => {
     try {
       const result = await updateUserProfile.execute(updatedUser);
-      login(result); // Actualizar contexto local y persistencia
+      login(result);
+      return result;
     } catch (error) {
       console.error("Error updating profile:", error);
       throw error;
@@ -104,17 +106,30 @@ export const DashboardView: React.FC = () => {
           </div>
           <div className="flex gap-2">
             {user?.role === 'LIDER_REPASO' && rehearsal.leaderId === user.id && (
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setRehearsalToDelete(rehearsal);
-                    }}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </Button>
+                <>
+                  <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-zinc-600 hover:text-primary hover:bg-primary/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/rehearsal/edit/${rehearsal.id}`);
+                      }}
+                  >
+                      <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                          e.stopPropagation();
+                          setRehearsalToDelete(rehearsal);
+                      }}
+                  >
+                      <Trash2 className="h-4 w-4" />
+                  </Button>
+                </>
             )}
             <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-lg ${
                 rehearsal.status === 'IN_PROGRESS' 
@@ -142,14 +157,14 @@ export const DashboardView: React.FC = () => {
           })}hs
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 pb-8 pt-2">
+      <CardContent className="space-y-4 pb-8 pt-2 text-left">
         <div className="flex items-center gap-4 text-sm text-zinc-400 group-hover:text-zinc-300 transition-colors">
           <Music className="h-4 w-4" />
           <span className="font-medium">{rehearsal.songs.length} canciones</span>
         </div>
-        <div className="flex items-center gap-4 text-sm text-zinc-400 group-hover:text-zinc-300 transition-colors text-left">
+        <div className="flex items-center gap-4 text-sm text-zinc-400 group-hover:text-zinc-300 transition-colors">
           <Users className="h-4 w-4" />
-          <span className="font-medium text-left">{rehearsal.assignedUsers.length} músicos asignados</span>
+          <span className="font-medium">{rehearsal.assignedUsers.length} músicos asignados</span>
         </div>
       </CardContent>
       <CardFooter className="pt-0 flex items-center justify-between text-primary text-sm font-bold opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
@@ -175,26 +190,31 @@ export const DashboardView: React.FC = () => {
                 onClick={() => setIsProfileOpen(true)}
              >
                 <span className="text-sm font-semibold text-white flex items-center justify-end gap-2">
-                    {user.name} <Settings className="h-3 w-3 text-zinc-500" />
+                    {user.firstName} {user.lastName} <Settings className="h-3 w-3 text-zinc-500" />
                 </span>
                 <span className="text-[10px] text-zinc-500 uppercase tracking-widest">
                     {user.role === 'LIDER_REPASO' ? 'Líder' : (user.defaultInstrument || 'Integrante')}
                 </span>
-             </div>
-             <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white hover:bg-white/5 rounded-full" onClick={handleLogout}>
+                </div>
+                <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white hover:bg-white/5 rounded-full" onClick={handleLogout}>
                 <LogOut className="h-5 w-5" />
-             </Button>
-          </div>
-        </div>
-      </nav>
+                </Button>
+                </div>
+                </div>
+                </nav>
 
-      <main className="container mx-auto p-6 md:p-10 space-y-12">
-        <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 text-left">
-          <div className="space-y-2">
-            <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-none">Hola, {user.name.split(' ')[0]}</h1>
-            <p className="text-zinc-400 text-lg">Panel de control de alabanza y ensayos.</p>
+                <main className="container mx-auto p-6 md:p-10 space-y-12">
+                <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 text-left">
+                <div className="space-y-2">
+                <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-none">Hola, {user.firstName}</h1>
+                <p className="text-zinc-400 text-lg">Panel de control de alabanza y ensayos.</p>
           </div>
           <div className="flex gap-3 w-full md:w-auto">
+            {user.role === 'LIDER_REPASO' && (
+              <Button variant="outline" className="flex-1 md:flex-none border-white/10 bg-white/5 text-white hover:bg-white/10 h-14 px-8 rounded-2xl font-bold" onClick={() => navigate('/users/new')}>
+                <UserPlus className="h-4 w-4 mr-2" /> Equipo
+              </Button>
+            )}
             <Button variant="outline" className="flex-1 md:flex-none border-white/10 bg-white/5 text-white hover:bg-white/10 h-14 px-8 rounded-2xl font-bold" onClick={() => navigate('/songs')}>
               <Library className="h-4 w-4 mr-2" /> Repertorio
             </Button>
@@ -252,7 +272,6 @@ export const DashboardView: React.FC = () => {
         </section>
       </main>
 
-      {/* MODAL DE PERFIL */}
       <ProfileEditModal 
         isOpen={isProfileOpen}
         user={user}
@@ -260,7 +279,6 @@ export const DashboardView: React.FC = () => {
         onSave={handleUpdateProfile}
       />
 
-      {/* MODAL DE CONFIRMACIÓN */}
       <ConfirmationModal 
         isOpen={!!rehearsalToDelete}
         title="¿Cancelar este ensayo?"

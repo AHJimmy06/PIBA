@@ -54,6 +54,24 @@ export class SupabaseRehearsalRepository implements RehearsalRepository {
     return fullRehearsal;
   }
 
+  async update(rehearsal: Rehearsal): Promise<Rehearsal> {
+    const { error } = await supabase.rpc('update_rehearsal_with_details', {
+      p_rehearsal_id: rehearsal.id,
+      p_date: rehearsal.date.toISOString(),
+      p_user_ids: rehearsal.assignedUsers.map(u => u.id),
+      p_song_ids: rehearsal.songs.map(s => s.songId)
+    });
+
+    if (error) {
+      throw new Error(`Error transaccional al actualizar el ensayo: ${error.message}`);
+    }
+
+    const updated = await this.getById(rehearsal.id);
+    if (!updated) throw new Error("No se pudo recuperar el ensayo actualizado.");
+    
+    return updated;
+  }
+
   async getPendingForUser(userId: string): Promise<Rehearsal[]> {
     // 1. Ensayos que LIDERAS
     const ledPromise = supabase

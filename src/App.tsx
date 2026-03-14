@@ -6,6 +6,7 @@ import { RehearsalView } from './presentation/views/RehearsalView';
 import { CreateRehearsalView } from './presentation/views/CreateRehearsalView';
 import { ProjectionView } from './presentation/views/ProjectionView';
 import { EditSongView } from './presentation/views/EditSongView';
+import { CreateUserView } from './presentation/views/CreateUserView';
 import './App.css';
 
 /**
@@ -38,8 +39,16 @@ const router = createBrowserRouter([
     element: <CreateRehearsalView />,
   },
   {
+    path: "/rehearsal/edit/:rehearsalId",
+    element: <CreateRehearsalView />,
+  },
+  {
     path: "/rehearsal/:rehearsalId",
     element: <RehearsalView />,
+  },
+  {
+    path: "/users/new",
+    element: <CreateUserView />,
   },
   {
     path: "/projection/:rehearsalId",

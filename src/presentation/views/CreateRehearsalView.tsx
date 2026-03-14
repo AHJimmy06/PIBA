@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useDependencies } from '../context/DependenciesProvider';
+import { useAuth } from '../context/AuthContext';
 import type { User } from '@/core/domain/entities/User';
 import type { Song } from '@/core/domain/entities/Song';
 import { 
@@ -10,7 +11,8 @@ import {
   Music, 
   Save, 
   CheckCircle2, 
-  XCircle 
+  XCircle,
+  Edit
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/card';
 import { Button } from '@/presentation/components/ui/button';
@@ -18,8 +20,10 @@ import { Input } from '@/presentation/components/ui/input';
 import { Label } from '@/presentation/components/ui/label';
 
 export const CreateRehearsalView: React.FC = () => {
+  const { rehearsalId } = useParams<{ rehearsalId: string }>();
   const navigate = useNavigate();
   const { getUsers, getSongs, rehearsalRepository } = useDependencies();
+  const { user: currentUser } = useAuth();
 
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [availableSongs, setAvailableSongs] = useState<Song[]>([]);
@@ -28,9 +32,14 @@ export const CreateRehearsalView: React.FC = () => {
   const [time, setTime] = useState('');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedSongIds, setSelectedSongIds] = useState<string[]>([]);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [songSearchTerm, setSongSearchTerm] = useState('');
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const isEditMode = !!rehearsalId;
+  const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,6 +50,17 @@ export const CreateRehearsalView: React.FC = () => {
         ]);
         setAvailableUsers(users);
         setAvailableSongs(songs);
+
+        if (isEditMode && rehearsalId) {
+          const rehearsal = await rehearsalRepository.getById(rehearsalId);
+          if (rehearsal) {
+            const d = new Date(rehearsal.date);
+            setDate(d.toISOString().split('T')[0]);
+            setTime(d.toTimeString().split(' ')[0].substring(0, 5));
+            setSelectedUserIds(rehearsal.assignedUsers.map(u => u.id));
+            setSelectedSongIds(rehearsal.songs.map(s => s.songId));
+          }
+        }
       } catch (error) {
         console.error("Error loading data:", error);
       } finally {
@@ -48,32 +68,41 @@ export const CreateRehearsalView: React.FC = () => {
       }
     };
     fetchData();
-  }, [getUsers, getSongs]);
+  }, [getUsers, getSongs, isEditMode, rehearsalId, rehearsalRepository]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date || !time) return;
 
+    const selectedDateTime = new Date(`${date}T${time}`);
+    if (!isEditMode && selectedDateTime < new Date()) {
+      alert("No puedes programar un ensayo en el pasado.");
+      return;
+    }
+
     setSaving(true);
     try {
-      // Combinamos fecha y hora
-      const dateTime = new Date(`${date}T${time}`);
-      
-      await rehearsalRepository.create({
-        date: dateTime,
-        status: 'PENDING',
-        leaderId: 'd1111111-1111-1111-1111-111111111111', // Líder por defecto (Simulado)
+      const rehearsalData = {
+        date: selectedDateTime,
+        status: 'PENDING' as const,
+        leaderId: currentUser?.id || '',
         assignedUsers: availableUsers.filter(u => selectedUserIds.includes(u.id)),
         songs: selectedSongIds.map(id => ({ 
           songId: id, 
           adjustedChords: [] 
         }))
-      });
+      };
+
+      if (isEditMode && rehearsalId) {
+        await rehearsalRepository.update({ ...rehearsalData, id: rehearsalId });
+      } else {
+        await rehearsalRepository.create(rehearsalData);
+      }
 
       navigate('/dashboard');
     } catch (error) {
-      console.error("Error creating rehearsal:", error);
-      alert("Error al guardar el ensayo. Verifica la conexión.");
+      console.error("Error saving rehearsal:", error);
+      alert("Error al guardar el ensayo.");
     } finally {
       setSaving(false);
     }
@@ -89,14 +118,14 @@ export const CreateRehearsalView: React.FC = () => {
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center">
-      <div className="text-zinc-500 animate-pulse font-medium">Preparando catálogo de alabanza...</div>
+      <div className="text-zinc-500 animate-pulse font-medium">Sincronizando datos...</div>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] p-6 md:p-10 selection:bg-primary/30">
       <div className="max-w-4xl mx-auto space-y-10">
-        <header className="flex items-center gap-6">
+        <header className="flex items-center gap-6 text-left">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -106,13 +135,16 @@ export const CreateRehearsalView: React.FC = () => {
             <ArrowLeft className="h-6 w-6" />
           </Button>
           <div>
-            <h1 className="text-4xl font-extrabold text-white tracking-tight">Nuevo Ensayo</h1>
-            <p className="text-zinc-500 text-lg">Organiza el tiempo, el equipo y las canciones.</p>
+            <h1 className="text-4xl font-extrabold text-white tracking-tight">
+              {isEditMode ? 'Editar Ensayo' : 'Nuevo Ensayo'}
+            </h1>
+            <p className="text-zinc-500 text-lg">
+              {isEditMode ? 'Ajusta la programación y el equipo del ensayo.' : 'Organiza el tiempo, el equipo y las canciones.'}
+            </p>
           </div>
         </header>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-          {/* Configuración de Fecha y Equipo */}
           <div className="space-y-10">
             <Card className="border-white/5 bg-white/5 backdrop-blur-md rounded-3xl overflow-hidden shadow-2xl">
               <CardHeader className="bg-white/[0.02] border-b border-white/5">
@@ -129,6 +161,7 @@ export const CreateRehearsalView: React.FC = () => {
                   <Input 
                     type="date" 
                     required 
+                    min={today}
                     className="bg-zinc-900/50 border-white/10 text-white h-12 rounded-xl focus:ring-primary focus:border-primary"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
@@ -156,9 +189,21 @@ export const CreateRehearsalView: React.FC = () => {
                   Convocar Equipo
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-2 custom-scrollbar text-left">
-                  {availableUsers.map(user => (
+              <CardContent className="pt-6 space-y-4">
+                <Input 
+                  placeholder="Buscar músico por nombre..."
+                  className="bg-zinc-900/50 border-white/5 text-sm h-10 rounded-xl"
+                  value={userSearchTerm}
+                  onChange={(e) => setUserSearchTerm(e.target.value)}
+                />
+                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-2 custom-scrollbar">
+                  {availableUsers
+                    .filter(u => u.id !== currentUser?.id)
+                    .filter(u => 
+                      `${u.firstName} ${u.lastName}`.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                      u.defaultInstrument?.toLowerCase().includes(userSearchTerm.toLowerCase())
+                    )
+                    .map(user => (
                     <div 
                       key={user.id}
                       onClick={() => toggleSelection(user.id, selectedUserIds, setSelectedUserIds)}
@@ -168,9 +213,12 @@ export const CreateRehearsalView: React.FC = () => {
                         : 'bg-white/5 border-transparent text-zinc-500 hover:bg-white/10'
                       }`}
                     >
-                      <div className="flex flex-col">
-                        <span className="font-bold">{user.name}</span>
-                        <span className="text-[10px] uppercase opacity-50 tracking-tighter">{user.defaultInstrument || 'General'}</span>
+                      <div className="flex flex-col text-left">
+                          <span className="font-bold">{user.firstName} {user.lastName}</span>
+                          <span className="text-[10px] uppercase opacity-50 tracking-tighter">
+                            {user.role === 'LIDER_REPASO' ? 'Líder • ' : ''}
+                            {user.defaultInstrument || 'General'}
+                          </span>
                       </div>
                       {selectedUserIds.includes(user.id) 
                         ? <CheckCircle2 className="h-5 w-5 text-primary" /> 
@@ -183,7 +231,6 @@ export const CreateRehearsalView: React.FC = () => {
             </Card>
           </div>
 
-          {/* Selección de Repertorio */}
           <div className="space-y-10 flex flex-col">
             <Card className="border-white/5 bg-white/5 backdrop-blur-md rounded-3xl overflow-hidden shadow-2xl flex-1">
               <CardHeader className="bg-white/[0.02] border-b border-white/5">
@@ -194,9 +241,20 @@ export const CreateRehearsalView: React.FC = () => {
                   Armar Repertorio
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar text-left">
-                  {availableSongs.map(song => (
+              <CardContent className="pt-6 space-y-4">
+                <Input 
+                  placeholder="Buscar canción por título o tono..."
+                  className="bg-zinc-900/50 border-white/5 text-sm h-10 rounded-xl"
+                  value={songSearchTerm}
+                  onChange={(e) => setSongSearchTerm(e.target.value)}
+                />
+                <div className="space-y-2 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar">
+                  {availableSongs
+                    .filter(s => 
+                      s.title.toLowerCase().includes(songSearchTerm.toLowerCase()) ||
+                      s.baseChords.toLowerCase().includes(songSearchTerm.toLowerCase())
+                    )
+                    .map(song => (
                     <div 
                       key={song.id}
                       onClick={() => toggleSelection(song.id, selectedSongIds, setSelectedSongIds)}
@@ -206,7 +264,7 @@ export const CreateRehearsalView: React.FC = () => {
                         : 'bg-white/5 border-transparent text-zinc-500 hover:bg-white/10'
                       }`}
                     >
-                      <div className="flex flex-col">
+                      <div className="flex flex-col text-left">
                         <span className="font-bold">{song.title}</span>
                         <span className="text-[10px] uppercase opacity-40 font-mono tracking-widest">{song.baseChords}</span>
                       </div>
@@ -225,7 +283,8 @@ export const CreateRehearsalView: React.FC = () => {
               disabled={saving || !date || !time || selectedSongIds.length === 0}
               className="w-full h-16 bg-primary hover:bg-primary/90 text-white font-black text-xl rounded-2xl shadow-2xl shadow-primary/20 transition-all active:scale-95 disabled:opacity-50"
             >
-              <Save className="h-6 w-6 mr-3" /> {saving ? 'Sincronizando...' : 'Publicar Ensayo'}
+              {isEditMode ? <Edit className="h-6 w-6 mr-3" /> : <Save className="h-6 w-6 mr-3" />}
+              {saving ? 'Sincronizando...' : (isEditMode ? 'GUARDAR CAMBIOS' : 'PUBLICAR ENSAYO')}
             </Button>
           </div>
         </form>

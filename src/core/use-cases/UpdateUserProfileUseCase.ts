@@ -9,8 +9,8 @@ export class UpdateUserProfileUseCase {
   }
 
   async execute(user: User): Promise<User> {
-    if (!user.name.trim()) {
-      throw new Error("El nombre no puede estar vacío.");
+    if (!user.firstName.trim() || !user.lastName.trim()) {
+      throw new Error("El nombre y el apellido no pueden estar vacíos.");
     }
 
     return await this.userRepository.update(user);

@@ -9,6 +9,8 @@ export class GetUsersUseCase {
   }
 
   async execute(): Promise<User[]> {
-    return this.userRepository.getByRole('GENERAL');
+    const generalUsers = await this.userRepository.getByRole('GENERAL');
+    const leaderUsers = await this.userRepository.getByRole('LIDER_REPASO');
+    return [...leaderUsers, ...generalUsers];
   }
 }

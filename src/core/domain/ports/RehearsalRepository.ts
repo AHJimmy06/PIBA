@@ -4,6 +4,9 @@ export interface RehearsalRepository {
     // Crea un nuevo repaso (asignando fecha, líder, usuarios y canciones)
     create(rehearsal: Omit<Rehearsal, 'id'>): Promise<Rehearsal>;
 
+    // Actualiza un repaso existente (fecha, usuarios y canciones)
+    update(rehearsal: Rehearsal): Promise<Rehearsal>;
+
     // Busca un repaso específico por su ID
     getById(id: string): Promise<Rehearsal | null>;
 

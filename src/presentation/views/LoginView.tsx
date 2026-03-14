@@ -20,22 +20,23 @@ export const LoginView: React.FC = () => {
     e.preventDefault();
     setError(null);
     
-    // Validación básica de UUID para evitar errores 400 innecesarios
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(userId.trim())) {
-      setError('Formato de ID inválido. Debe ser un UUID.');
+    const input = userId.trim();
+    if (!input) {
+      setError('Por favor ingresa tu código de acceso.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const user = await userRepository.getById(userId.trim());
+      // Intentar login ÚNICAMENTE con Access Code
+      const user = await userRepository.getByAccessCode(input);
+
       if (user) {
-        login(user); // Guardamos al usuario REAL en el contexto
+        login(user);
         navigate('/dashboard');
       } else {
-        setError('Usuario no encontrado. Verifica tu ID.');
+        setError('Código de acceso incorrecto. Verifica e intenta de nuevo.');
       }
     } catch (err) {
       setError('Error de conexión con la base de datos.');
@@ -61,17 +62,17 @@ export const LoginView: React.FC = () => {
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2 text-left">
               <Label htmlFor="userId" className="text-zinc-400">
-                ID de Usuario (UUID)
+                Código de Acceso
               </Label>
               <Input
                 id="userId"
                 type="text"
-                placeholder="00000000-0000-0000-0000-000000000000"
+                placeholder="Ej: 123johdoe"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
                 required
                 disabled={loading}
-                className="border-white/10 bg-white/5 text-white placeholder:text-zinc-500 focus:border-primary"
+                className="border-white/10 bg-white/5 text-white placeholder:text-zinc-500 focus:border-primary h-12 rounded-xl"
               />
             </div>
             {error && (
@@ -79,16 +80,16 @@ export const LoginView: React.FC = () => {
             )}
             <Button 
               type="submit" 
-              className="w-full font-semibold" 
+              className="w-full font-bold h-12 rounded-xl shadow-lg shadow-primary/20" 
               disabled={loading}
             >
-              {loading ? 'Cargando...' : 'Iniciar Sesión'}
+              {loading ? 'Verificando...' : 'ENTRAR AL PANEL'}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex justify-center border-t border-white/5 pt-6 text-center">
           <p className="text-xs text-zinc-500">
-            Copia el ID desde tu base de datos de Supabase
+            Solicita tu código al líder de alabanza si no lo tienes.
           </p>
         </CardFooter>
       </Card>

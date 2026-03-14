@@ -10,6 +10,7 @@ import { StartRehearsalUseCase } from "../core/use-cases/StartRehearsalUseCase";
 import { UpdateCustomChordsUseCase } from "../core/use-cases/UpdateCustomChordsUseCase";
 import { GetSongsUseCase } from "../core/use-cases/GetSongsUseCase";
 import { GetUsersUseCase } from "../core/use-cases/GetUsersUseCase";
+import { CreateUserUseCase } from "../core/use-cases/CreateUserUseCase";
 import { SaveSongUseCase } from "../core/use-cases/SaveSongUseCase";
 import { UpdateRehearsalStatusUseCase } from "../core/use-cases/UpdateRehearsalStatusUseCase";
 import { DeleteSongUseCase } from "../core/use-cases/DeleteSongUseCase";
@@ -31,6 +32,7 @@ export const dependencies = {
   updateCustomChords: new UpdateCustomChordsUseCase(rehearsalRepository),
   getSongs: new GetSongsUseCase(songRepository),
   getUsers: new GetUsersUseCase(userRepository),
+  createUser: new CreateUserUseCase(userRepository),
   saveSong: new SaveSongUseCase(songRepository),
   updateRehearsalStatus: new UpdateRehearsalStatusUseCase(rehearsalRepository, userRepository),
   deleteSong: new DeleteSongUseCase(songRepository),

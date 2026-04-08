@@ -17,12 +17,16 @@ import {
   X,
   Zap,
   Archive,
-  Layout
+  Layout,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '@/presentation/components/ui/button';
 import { ChordSheet } from '../components/rehearsal/ChordSheet';
 import { Textarea } from '@/presentation/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/card';
+import { transposeChords } from '@/lib/utils';
 
 const COMMON_CHORDS = ["C", "D", "E", "F", "G", "A", "B", "Cm", "Dm", "Em", "Am", "Bm", "Bb", "Eb", "F#", "G#", "C7", "D7", "G7"];
 
@@ -40,7 +44,7 @@ export const RehearsalView: React.FC = () => {
 
   const [rehearsal, setRehearsal] = useState<Rehearsal | null>(null);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
-  const [currentBlockIndex, setCurrentBlockIndex] = useState(0); // Nueva diapositiva
+  const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [viewMode, setViewMode] = useState<'SCROLL' | 'SLIDES'>('SLIDES');
   
   const [loading, setLoading] = useState(true);
@@ -80,7 +84,6 @@ export const RehearsalView: React.FC = () => {
     fetchRehearsal();
   }, [fetchRehearsal]);
 
-  // Lógica de Sincronización Avanzada (Canciones y Bloques)
   useEffect(() => {
     if (!rehearsalId) return;
     const channelName = `rehearsal-${rehearsalId}`;
@@ -116,20 +119,18 @@ export const RehearsalView: React.FC = () => {
     return () => unsubscribe();
   }, [rehearsalId, syncService, isLeader, loading, rehearsal]);
 
-  // Lógica de Bloques (Diapositivas)
   const currentRS = rehearsal?.songs[currentSongIndex];
   const instrument = user.defaultInstrument || 'General';
   const customVersion = currentRS?.adjustedChords.find(ac => ac.instrument === instrument);
   const fullContent = customVersion?.customChords || currentRS?.songDetails?.lyrics || '';
   
-  // Dividimos la letra en bloques (estrofas) usando el doble salto de línea
   const blocks = fullContent.split('\n\n').filter(b => b.trim() !== '');
 
   const changeSong = useCallback((index: number) => {
     if (!rehearsal) return;
     const newIndex = Math.max(0, Math.min(index, rehearsal.songs.length - 1));
     setCurrentSongIndex(newIndex);
-    setCurrentBlockIndex(0); // Reiniciar a primera diapositiva
+    setCurrentBlockIndex(0);
     setIsEditing(false);
 
     if (isLeader) {
@@ -153,7 +154,6 @@ export const RehearsalView: React.FC = () => {
     }
   }, [isLeader, syncService, rehearsalId, blocks.length]);
 
-  // Handlers de teclado para navegación rápida
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditing) return;
@@ -202,6 +202,17 @@ export const RehearsalView: React.FC = () => {
     setTimeout(() => textareaRef.current?.focus(), 10);
   };
 
+  const handleTranspose = (semitones: number) => {
+    const newLyrics = transposeChords(editedLyrics, semitones);
+    setEditedLyrics(newLyrics);
+  };
+
+  const resetToOriginal = () => {
+    if (currentRS?.songDetails?.lyrics) {
+      setEditedLyrics(currentRS.songDetails.lyrics);
+    }
+  };
+
   const handleTextareaClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
     setActiveCursorPos(e.currentTarget.selectionStart);
   };
@@ -238,22 +249,20 @@ export const RehearsalView: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#09090b] overflow-hidden text-zinc-300 font-sans">
-      {/* Sidebar: Repertorio y Mini-Slides */}
       <aside className="w-80 border-r border-white/5 bg-[#0f0f1a] flex flex-col shadow-2xl z-20">
         <div className="p-6 border-b border-white/5 flex items-center gap-4 text-left">
           <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="hover:bg-white/5 rounded-full text-zinc-400">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="truncate">
+          <div className="truncate text-left">
             <h2 className="font-bold text-white truncate text-sm uppercase tracking-tighter">Panel de Control</h2>
-            <div className="flex items-center gap-2 text-left">
+            <div className="flex items-center gap-2">
                <div className={`h-1.5 w-1.5 rounded-full ${rehearsal.status === 'IN_PROGRESS' ? 'bg-red-500 animate-pulse' : rehearsal.status === 'READY' ? 'bg-primary' : 'bg-zinc-600'}`} />
                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">{rehearsal.status}</p>
             </div>
           </div>
         </div>
         
-        {/* Navegación de Repertorio o Selector de Diapositivas */}
         {!isEditing ? (
             <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
                 <section>
@@ -278,7 +287,7 @@ export const RehearsalView: React.FC = () => {
                 </section>
 
                 <section>
-                    <p className="px-2 text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-4 text-left font-mono">Canciones</p>
+                    <p className="px-2 text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-4 text-left font-mono">Repertorio</p>
                     <div className="space-y-2">
                         {rehearsal.songs.map((rs, index) => (
                             <button
@@ -297,7 +306,54 @@ export const RehearsalView: React.FC = () => {
                 </section>
             </div>
         ) : (
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+                <Card className="border-white/10 bg-white/5 rounded-2xl overflow-hidden">
+                    <CardHeader className="py-4 border-b border-white/5 text-left bg-white/[0.02]">
+                        <CardTitle className="text-zinc-400 text-[10px] uppercase font-black tracking-widest flex items-center gap-2">
+                           <Edit3 className="h-3 w-3" /> Transposición Global
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 grid grid-cols-2 gap-3">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handleTranspose(-2)}
+                          className="bg-white/5 border-white/10 text-white hover:bg-red-500/20 hover:border-red-500/50 h-12 font-bold text-[10px]"
+                        >
+                          <ArrowDownCircle className="h-3 w-3 mr-1" /> -1 Tono
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handleTranspose(2)}
+                          className="bg-white/5 border-white/10 text-white hover:bg-primary/20 hover:border-primary/50 h-12 font-bold text-[10px]"
+                        >
+                          <ArrowUpCircle className="h-3 w-3 mr-1" /> +1 Tono
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handleTranspose(-1)}
+                          className="bg-white/5 border-white/10 text-white hover:bg-red-500/20 hover:border-red-500/50 h-12 font-bold text-[10px]"
+                        >
+                          <ArrowDownCircle className="h-3 w-3 mr-1" /> -1 Sem.
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handleTranspose(1)}
+                          className="bg-white/5 border-white/10 text-white hover:bg-primary/20 hover:border-primary/50 h-12 font-bold text-[10px]"
+                        >
+                          <ArrowUpCircle className="h-3 w-3 mr-1" /> +1 Sem.
+                        </Button>
+                    </CardContent>
+                    <div className="px-4 pb-4">
+                        <Button 
+                          variant="ghost" 
+                          onClick={resetToOriginal}
+                          className="w-full text-zinc-500 hover:text-white hover:bg-white/5 h-10 text-[10px] font-bold uppercase tracking-widest"
+                        >
+                          <RotateCcw className="h-3 w-3 mr-2" /> Restablecer Original
+                        </Button>
+                    </div>
+                </Card>
+
                 <Card className="border-primary/20 bg-primary/5 rounded-2xl">
                     <CardHeader className="py-4 border-b border-white/5 text-left">
                         <CardTitle className="text-primary text-[10px] uppercase font-black tracking-widest">Selector de Acordes</CardTitle>
@@ -311,7 +367,6 @@ export const RehearsalView: React.FC = () => {
             </div>
         )}
 
-        {/* Panel Líder */}
         {isLeader && !isEditing && (
           <div className="p-6 bg-white/[0.02] border-t border-white/5 space-y-4">
             {rehearsal.status === 'PENDING' || rehearsal.status === 'PAUSED' || rehearsal.status === 'READY' ? (
@@ -332,7 +387,6 @@ export const RehearsalView: React.FC = () => {
         )}
       </aside>
 
-      {/* Visor Principal (Slides o Scroll) */}
       <main className="flex-1 flex flex-col relative bg-[#09090b]">
         <header className="h-24 px-10 flex justify-between items-center bg-[#09090b] border-b border-white/5 backdrop-blur-xl z-10">
           <div className="flex items-center gap-5">
@@ -378,16 +432,15 @@ export const RehearsalView: React.FC = () => {
           </div>
         </header>
 
-        {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-10 md:p-20 scrollbar-hide select-none flex items-center justify-center">
           {isEditing ? (
-            <div className="max-w-4xl mx-auto w-full h-full flex flex-col space-y-4">
+            <div className="max-w-4xl mx-auto w-full h-full flex flex-col space-y-4 animate-in fade-in duration-300">
                 <Textarea 
                     ref={textareaRef}
                     value={editedLyrics}
                     onChange={(e) => setEditedLyrics(e.target.value)}
                     onClick={handleTextareaClick}
-                    className="flex-1 min-h-[500px] bg-white/[0.02] border-white/10 text-white p-8 font-mono text-xl leading-relaxed rounded-3xl"
+                    className="flex-1 min-h-[500px] bg-white/[0.02] border-white/10 text-white p-8 font-mono text-xl leading-relaxed rounded-3xl focus:ring-1 focus:ring-primary/30"
                 />
             </div>
           ) : (
@@ -401,7 +454,6 @@ export const RehearsalView: React.FC = () => {
           )}
         </div>
 
-        {/* Floating Navigator */}
         {!isEditing && (
             <footer className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-8 bg-[#18181b]/80 backdrop-blur-3xl px-8 py-4 rounded-[2.5rem] border border-white/10 shadow-2xl ring-1 ring-white/5">
                 <Button variant="ghost" size="icon" disabled={currentSongIndex === 0 && currentBlockIndex === 0} onClick={() => currentBlockIndex > 0 ? changeBlock(currentBlockIndex - 1) : changeSong(currentSongIndex - 1)} className="text-white hover:bg-white/10 rounded-2xl h-14 w-14 transition-all"><ChevronLeft className="h-10 w-10" /></Button>
@@ -413,7 +465,7 @@ export const RehearsalView: React.FC = () => {
                     </span>
                 </div>
 
-                <Button variant="ghost" size="icon" disabled={currentSongIndex === rehearsal.songs.length - 1 && currentBlockIndex === blocks.length - 1} onClick={() => currentBlockIndex < blocks.length - 1 ? changeBlock(currentBlockIndex + 1) : changeSong(currentSongIndex + 1)} className="text-white hover:bg-white/10 rounded-2xl h-14 w-14 transition-all"><ChevronRight className="h-10 w-10" /></Button>
+                <Button variant="ghost" size="icon" disabled={currentSongIndex === (rehearsal?.songs.length || 0) - 1 && currentBlockIndex === blocks.length - 1} onClick={() => currentBlockIndex < blocks.length - 1 ? changeBlock(currentBlockIndex + 1) : changeSong(currentSongIndex + 1)} className="text-white hover:bg-white/10 rounded-2xl h-14 w-14 transition-all"><ChevronRight className="h-10 w-10" /></Button>
             </footer>
         )}
       </main>

@@ -16,6 +16,7 @@ import { UpdateRehearsalStatusUseCase } from "../core/use-cases/UpdateRehearsalS
 import { DeleteSongUseCase } from "../core/use-cases/DeleteSongUseCase";
 import { DeleteRehearsalUseCase } from "../core/use-cases/DeleteRehearsalUseCase";
 import { UpdateUserProfileUseCase } from "../core/use-cases/UpdateUserProfileUseCase";
+import { GetSongByIdUseCase } from "../core/use-cases/GetSongByIdUseCase";
 
 // 1. Instanciamos la Infraestructura (Singletons)
 const userRepository = new SupabaseUserRepository();
@@ -31,6 +32,7 @@ export const dependencies = {
   startRehearsal: new StartRehearsalUseCase(rehearsalRepository, userRepository),
   updateCustomChords: new UpdateCustomChordsUseCase(rehearsalRepository),
   getSongs: new GetSongsUseCase(songRepository),
+  getSongById: new GetSongByIdUseCase(songRepository),
   getUsers: new GetUsersUseCase(userRepository),
   createUser: new CreateUserUseCase(userRepository),
   saveSong: new SaveSongUseCase(songRepository),

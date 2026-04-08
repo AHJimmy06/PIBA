@@ -20,16 +20,16 @@ const COMMON_CHORDS = ["C", "D", "E", "F", "G", "A", "B", "Cm", "Dm", "Em", "Am"
 export const EditSongView: React.FC = () => {
   const { songId } = useParams<{ songId: string }>();
   const navigate = useNavigate();
-  const { saveSong, songRepository } = useDependencies();
+  const { saveSong, getSongById } = useDependencies();
 
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [baseChords, setBaseChords] = useState('');
-  
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   const [editMode, setEditMode] = useState<'TEXT' | 'CHORDS'>('TEXT');
   const [activeCursorPos, setActiveCursorPos] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -39,7 +39,7 @@ export const EditSongView: React.FC = () => {
       const fetchSong = async () => {
         setLoading(true);
         try {
-          const song = await songRepository.getById(songId);
+          const song = await getSongById.execute(songId);
           if (song) {
             setTitle(song.title);
             setAuthor(song.author);
@@ -54,8 +54,7 @@ export const EditSongView: React.FC = () => {
       };
       fetchSong();
     }
-  }, [songId, songRepository]);
-
+  }, [songId, getSongById]);
   const insertChord = (chord: string) => {
     if (activeCursorPos === null) return;
     const before = lyrics.substring(0, activeCursorPos);

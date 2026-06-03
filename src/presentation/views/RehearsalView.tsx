@@ -50,6 +50,9 @@ export const RehearsalView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isLeader, setIsLeader] = useState(false);
   const [showChords, setShowChords] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [bpm, setBpm] = useState(70);
+  const [isMetronomeActive, setIsMetronomeActive] = useState(false);
   
   const [isEditing, setIsEditing] = useState(false);
   const [editedLyrics, setEditedLyrics] = useState('');
@@ -248,58 +251,123 @@ export const RehearsalView: React.FC = () => {
   );
 
   return (
-    <div className="flex h-screen bg-[#09090b] overflow-hidden text-zinc-300 font-sans">
-      <aside className="w-80 border-r border-white/5 bg-[#0f0f1a] flex flex-col shadow-2xl z-20">
-        <div className="p-6 border-b border-white/5 flex items-center gap-4 text-left">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="hover:bg-white/5 rounded-full text-zinc-400">
+    <div className="flex h-screen bg-[#09090b] overflow-hidden text-zinc-300 font-sans selection:bg-primary/30">
+      {/* Sidebar Colapsable */}
+      <aside className={`relative border-r border-white/5 bg-[#0f0f1a] flex flex-col shadow-2xl z-20 transition-all duration-500 ease-in-out ${isSidebarCollapsed ? 'w-16' : 'w-80'}`}>
+        {/* Toggle Button */}
+        <button 
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-4 top-10 h-8 w-8 bg-zinc-900 border border-white/10 rounded-full flex items-center justify-center shadow-2xl hover:bg-primary transition-all z-30 group"
+        >
+          {isSidebarCollapsed ? <ChevronRight className="h-3 w-3 text-white group-hover:scale-125 transition-transform" /> : <ChevronLeft className="h-3 w-3 text-white group-hover:scale-125 transition-transform" />}
+        </button>
+
+        <div className={`p-6 border-b border-white/5 flex items-center gap-4 text-left overflow-hidden ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="hover:bg-white/5 rounded-full text-zinc-400 shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="truncate text-left">
-            <h2 className="font-bold text-white truncate text-sm uppercase tracking-tighter">Panel de Control</h2>
-            <div className="flex items-center gap-2">
-               <div className={`h-1.5 w-1.5 rounded-full ${rehearsal.status === 'IN_PROGRESS' ? 'bg-red-500 animate-pulse' : rehearsal.status === 'READY' ? 'bg-primary' : 'bg-zinc-600'}`} />
-               <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">{rehearsal.status}</p>
+          {!isSidebarCollapsed && (
+            <div className="truncate text-left animate-in fade-in slide-in-from-left-4 duration-500">
+                <h2 className="font-bold text-white truncate text-xs uppercase tracking-widest opacity-70">Panel de Control</h2>
+                <div className="flex items-center gap-2 mt-0.5">
+                    <div className={`h-1.5 w-1.5 rounded-full ${rehearsal.status === 'IN_PROGRESS' ? 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]' : rehearsal.status === 'READY' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-zinc-600'}`} />
+                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-black">{rehearsal.status}</p>
+                </div>
             </div>
-          </div>
+          )}
         </div>
         
         {!isEditing ? (
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 space-y-8 custom-scrollbar overflow-x-hidden">
+                {/* Metrónomo Visual */}
+                {!isSidebarCollapsed && (
+                  <section className="px-2 animate-in zoom-in-95 duration-700">
+                    <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-4 shadow-inner">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">Metrónomo</p>
+                        <div className={`h-2 w-2 rounded-full transition-all duration-75 ${isMetronomeActive ? 'bg-primary animate-pulse-fast shadow-[0_0_12px_rgba(var(--primary),0.8)]' : 'bg-zinc-800'}`} />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-2xl font-black text-white font-mono w-12 text-left">{bpm}</span>
+                        <input 
+                          type="range" min="40" max="220" value={bpm} 
+                          onChange={(e) => setBpm(parseInt(e.target.value))}
+                          className="flex-1 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setIsMetronomeActive(!isMetronomeActive)}
+                          className={`h-8 w-8 p-0 rounded-lg transition-all ${isMetronomeActive ? 'bg-primary text-white' : 'bg-white/5 text-zinc-500'}`}
+                        >
+                          <Zap className="h-4 w-4 fill-current" />
+                        </Button>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
                 <section>
-                    <p className="px-2 text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-4 text-left font-mono">Diapositivas</p>
+                    {!isSidebarCollapsed ? (
+                      <p className="px-2 text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-4 text-left font-mono animate-in fade-in duration-500">Diapositivas</p>
+                    ) : (
+                      <div className="flex justify-center mb-4"><Layout className="h-4 w-4 text-zinc-700" /></div>
+                    )}
                     <div className="space-y-2">
                         {blocks.map((block, idx) => (
                             <button
                                 key={idx}
                                 onClick={() => isLeader && changeBlock(idx)}
-                                className={`w-full text-left p-3 rounded-xl transition-all border ${
+                                className={`w-full text-left rounded-xl transition-all border group relative ${
                                     idx === currentBlockIndex 
-                                    ? 'bg-primary/20 border-primary text-primary shadow-lg' 
+                                    ? 'bg-primary/20 border-primary text-primary shadow-lg shadow-primary/10' 
                                     : 'bg-white/[0.02] border-transparent text-zinc-500 hover:bg-white/5'
-                                }`}
+                                } ${isSidebarCollapsed ? 'p-3 flex justify-center' : 'p-3'}`}
                             >
-                                <p className="text-[10px] font-bold line-clamp-2 leading-relaxed">
-                                    {block.replace(/\[.*?\]/g, '').trim()}
-                                </p>
+                                {isSidebarCollapsed ? (
+                                  <span className="text-[10px] font-black">{idx + 1}</span>
+                                ) : (
+                                  <p className="text-[10px] font-bold line-clamp-2 leading-relaxed">
+                                      {block.replace(/\[.*?\]/g, '').trim()}
+                                  </p>
+                                )}
+                                {idx === currentBlockIndex && !isSidebarCollapsed && (
+                                  <div className="absolute right-2 top-1/2 -translate-y-1/2 h-1 w-1 bg-primary rounded-full" />
+                                )}
                             </button>
                         ))}
                     </div>
                 </section>
 
                 <section>
-                    <p className="px-2 text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-4 text-left font-mono">Repertorio</p>
+                    {!isSidebarCollapsed ? (
+                      <p className="px-2 text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-4 text-left font-mono animate-in fade-in duration-500">Repertorio</p>
+                    ) : (
+                      <div className="flex justify-center mb-4 mt-8"><Music2 className="h-4 w-4 text-zinc-700" /></div>
+                    )}
                     <div className="space-y-2">
                         {rehearsal.songs.map((rs, index) => (
                             <button
                                 key={rs.songId}
                                 onClick={() => isLeader && changeSong(index)}
-                                className={`w-full text-left p-3 rounded-xl transition-all border ${
+                                className={`w-full text-left rounded-xl transition-all border group relative ${
                                     index === currentSongIndex 
-                                    ? 'bg-zinc-800 border-zinc-700 text-white' 
+                                    ? 'bg-zinc-800 border-zinc-700 text-white shadow-xl' 
                                     : 'bg-transparent border-transparent text-zinc-600 hover:bg-white/5'
-                                }`}
+                                } ${isSidebarCollapsed ? 'p-3 flex justify-center' : 'p-4'}`}
                             >
-                                <p className="font-bold truncate text-xs">{rs.songDetails?.title}</p>
+                                {isSidebarCollapsed ? (
+                                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-black text-[10px] ${index === currentSongIndex ? 'bg-primary text-white' : 'bg-zinc-900'}`}>
+                                    {index + 1}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-3">
+                                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${index === currentSongIndex ? 'bg-primary/20 text-primary' : 'bg-zinc-900 text-zinc-700'}`}>
+                                      <Music2 className="h-4 w-4" />
+                                    </div>
+                                    <p className="font-black truncate text-xs uppercase tracking-tight">{rs.songDetails?.title}</p>
+                                  </div>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -307,7 +375,7 @@ export const RehearsalView: React.FC = () => {
             </div>
         ) : (
             <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
-                <Card className="border-white/10 bg-white/5 rounded-2xl overflow-hidden">
+                <Card className={`border-white/10 bg-white/5 rounded-2xl overflow-hidden ${isSidebarCollapsed ? 'hidden' : ''}`}>
                     <CardHeader className="py-4 border-b border-white/5 text-left bg-white/[0.02]">
                         <CardTitle className="text-zinc-400 text-[10px] uppercase font-black tracking-widest flex items-center gap-2">
                            <Edit3 className="h-3 w-3" /> Transposición Global
@@ -354,7 +422,7 @@ export const RehearsalView: React.FC = () => {
                     </div>
                 </Card>
 
-                <Card className="border-primary/20 bg-primary/5 rounded-2xl">
+                <Card className={`border-primary/20 bg-primary/5 rounded-2xl ${isSidebarCollapsed ? 'hidden' : ''}`}>
                     <CardHeader className="py-4 border-b border-white/5 text-left">
                         <CardTitle className="text-primary text-[10px] uppercase font-black tracking-widest">Selector de Acordes</CardTitle>
                     </CardHeader>
@@ -364,13 +432,21 @@ export const RehearsalView: React.FC = () => {
                         ))}
                     </CardContent>
                 </Card>
+
+                {isSidebarCollapsed && (
+                  <div className="flex flex-col items-center gap-4 py-8">
+                     <Edit3 className="h-5 w-5 text-zinc-600" />
+                     <div className="h-px w-8 bg-white/5" />
+                     <RotateCcw className="h-5 w-5 text-zinc-600 cursor-pointer hover:text-white" onClick={resetToOriginal} />
+                  </div>
+                )}
             </div>
         )}
 
-        {isLeader && !isEditing && (
-          <div className="p-6 bg-white/[0.02] border-t border-white/5 space-y-4">
+        {isLeader && !isEditing && !isSidebarCollapsed && (
+          <div className="p-6 bg-white/[0.02] border-t border-white/5 space-y-4 animate-in fade-in duration-500">
             {rehearsal.status === 'PENDING' || rehearsal.status === 'PAUSED' || rehearsal.status === 'READY' ? (
-              <Button onClick={handleStart} className="w-full bg-primary hover:bg-primary/90 text-white font-black h-12 rounded-xl shadow-lg shadow-primary/20">
+              <Button onClick={handleStart} className="w-full bg-primary hover:bg-primary/90 text-white font-black h-12 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95">
                 <Play className="h-4 w-4 mr-2 fill-current" /> 
                 {rehearsal.status === 'PAUSED' ? 'REANUDAR' : rehearsal.status === 'READY' ? 'INICIAR ALABANZA' : 'EMPEZAR ENSAYO'}
               </Button>
@@ -380,15 +456,37 @@ export const RehearsalView: React.FC = () => {
                     <Button variant="outline" onClick={() => handleUpdateStatus('PAUSED')} className="border-white/10 text-white hover:bg-white/5 h-12 rounded-xl font-bold"><Pause className="h-4 w-4 mr-2" /> PAUSAR</Button>
                     <Button onClick={() => handleUpdateStatus('READY')} className="bg-primary hover:bg-primary/90 text-white font-black h-12 rounded-xl shadow-lg shadow-primary/20"><Zap className="h-4 w-4 mr-2 fill-current" /> LISTO</Button>
                 </div>
-                <Button variant="ghost" onClick={() => handleUpdateStatus('COMPLETED')} className="text-zinc-600 hover:text-zinc-400 text-[10px] font-black uppercase tracking-widest mt-2"><Archive className="h-3 w-3 mr-2" /> Finalizar y Archivar</Button>
+                <Button variant="ghost" onClick={() => handleUpdateStatus('COMPLETED')} className="text-zinc-600 hover:text-zinc-400 text-[10px] font-black uppercase tracking-widest mt-2 transition-colors"><Archive className="h-3 w-3 mr-2" /> Finalizar y Archivar</Button>
               </div>
             )}
+          </div>
+        )}
+        
+        {isLeader && !isEditing && isSidebarCollapsed && (
+          <div className="mt-auto p-4 flex flex-col items-center gap-4 border-t border-white/5">
+            <Button size="icon" onClick={handleStart} className="bg-primary rounded-xl h-10 w-10"><Play className="h-4 w-4 fill-current" /></Button>
           </div>
         )}
       </aside>
 
       <main className="flex-1 flex flex-col relative bg-[#09090b]">
         <header className="h-24 px-10 flex justify-between items-center bg-[#09090b] border-b border-white/5 backdrop-blur-xl z-10">
+          {/* Progress Bars */}
+          <div className="absolute top-0 left-0 w-full flex flex-col">
+            <div className="h-1 bg-zinc-800 w-full">
+              <div 
+                className="h-full bg-primary/40 transition-all duration-500 ease-out" 
+                style={{ width: `${((currentSongIndex) / (rehearsal?.songs.length || 1)) * 100}%` }}
+              />
+            </div>
+            <div className="h-0.5 bg-zinc-900 w-full">
+              <div 
+                className="h-full bg-primary transition-all duration-300 ease-out" 
+                style={{ width: `${((currentBlockIndex + 1) / (blocks.length || 1)) * 100}%` }}
+              />
+            </div>
+          </div>
+
           <div className="flex items-center gap-5">
             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center ring-1 ring-primary/20">
                <Music2 className="h-6 w-6 text-primary" />
@@ -399,6 +497,11 @@ export const RehearsalView: React.FC = () => {
                  <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded text-[10px] font-bold tracking-widest uppercase">
                     {customVersion ? `VERSION PERSONALIZADA` : `TONO ORIGINAL: ${currentRS?.songDetails?.baseChords}`}
                  </span>
+                 <div className="flex gap-1">
+                    {rehearsal.songs.map((_, i) => (
+                      <div key={i} className={`h-1 w-3 rounded-full transition-all ${i === currentSongIndex ? 'bg-primary w-6' : 'bg-zinc-800'}`} />
+                    ))}
+                 </div>
               </div>
             </div>
           </div>
@@ -406,33 +509,44 @@ export const RehearsalView: React.FC = () => {
           <div className="flex items-center gap-4">
              {!isEditing ? (
                 <>
-                    <Button 
-                        variant="outline" 
-                        onClick={() => setViewMode(viewMode === 'SCROLL' ? 'SLIDES' : 'SCROLL')}
-                        className={`rounded-xl h-11 px-5 font-bold border-white/10 bg-white/5 text-zinc-400 hover:text-white transition-all ${viewMode === 'SLIDES' ? 'bg-zinc-800 border-zinc-600 text-white' : ''}`}
-                    >
-                        <Layout className="h-4 w-4 mr-2" /> {viewMode === 'SLIDES' ? 'MODO DIAPOSITIVA' : 'MODO LECTURA'}
-                    </Button>
-                    <Button variant="outline" onClick={startEditing} className="rounded-xl h-11 px-5 font-bold border-white/10 bg-white/5 text-zinc-400 hover:text-white"><Edit3 className="h-4 w-4 mr-2 text-primary" /> AJUSTAR ACORDES</Button>
+                    <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 mr-2">
+                        <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setViewMode('SLIDES')}
+                            className={`rounded-lg h-9 px-4 font-bold transition-all ${viewMode === 'SLIDES' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500'}`}
+                        >
+                            DIAPOSITIVA
+                        </Button>
+                        <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setViewMode('SCROLL')}
+                            className={`rounded-lg h-9 px-4 font-bold transition-all ${viewMode === 'SCROLL' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500'}`}
+                        >
+                            LECTURA
+                        </Button>
+                    </div>
+                    <Button variant="outline" onClick={startEditing} className="rounded-xl h-11 px-5 font-bold border-white/10 bg-white/5 text-zinc-400 hover:text-white transition-all hover:border-primary/50"><Edit3 className="h-4 w-4 mr-2 text-primary" /> AJUSTAR ACORDES</Button>
                 </>
              ) : (
                 <div className="flex gap-2">
-                    <Button onClick={saveMyChords} disabled={savingChords} className="bg-green-600 hover:bg-green-500 text-white rounded-xl h-11 px-5 font-bold"><Save className="h-4 w-4 mr-2" /> GUARDAR</Button>
-                    <Button variant="ghost" onClick={() => setIsEditing(false)} className="text-zinc-500 hover:text-white h-11 w-11 p-0 rounded-full"><X className="h-5 w-5" /></Button>
+                    <Button onClick={saveMyChords} disabled={savingChords} className="bg-green-600 hover:bg-green-500 text-white rounded-xl h-11 px-5 font-bold shadow-lg shadow-green-900/20"><Save className="h-4 w-4 mr-2" /> GUARDAR CAMBIOS</Button>
+                    <Button variant="ghost" onClick={() => setIsEditing(false)} className="text-zinc-500 hover:text-white h-11 w-11 p-0 rounded-full hover:bg-white/5"><X className="h-5 w-5" /></Button>
                 </div>
              )}
 
              {isLeader && !isEditing && (
-               <Button variant="outline" onClick={handleOpenProjection} className="rounded-xl h-11 px-5 font-bold border-white/10 bg-white/5 text-zinc-400 hover:text-white"><MonitorPlay className="h-4 w-4 mr-2 text-primary" /> PROYECTAR</Button>
+               <Button variant="outline" onClick={handleOpenProjection} className="rounded-xl h-11 px-5 font-bold border-white/10 bg-white/5 text-zinc-400 hover:text-white hover:border-primary/50"><MonitorPlay className="h-4 w-4 mr-2 text-primary" /> PROYECTAR</Button>
              )}
 
              {!isEditing && (
-                <Button variant="outline" size="sm" onClick={() => setShowChords(!showChords)} className={`rounded-xl h-11 px-5 font-bold border-white/10 transition-all ${showChords ? 'bg-primary text-white border-primary' : 'bg-white/5 text-zinc-500 hover:text-white'}`}><Type className="h-4 w-4 mr-2" /> ACORDES</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowChords(!showChords)} className={`rounded-xl h-11 px-5 font-bold border-white/10 transition-all ${showChords ? 'bg-primary/20 text-primary border-primary/50' : 'bg-white/5 text-zinc-500 hover:text-white'}`}><Type className="h-4 w-4 mr-2" /> ACORDES</Button>
              )}
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-10 md:p-20 scrollbar-hide select-none flex items-center justify-center">
+        <div className="flex-1 overflow-y-auto p-10 md:p-20 scrollbar-hide select-none flex flex-col items-center">
           {isEditing ? (
             <div className="max-w-4xl mx-auto w-full h-full flex flex-col space-y-4 animate-in fade-in duration-300">
                 <Textarea 
@@ -440,32 +554,64 @@ export const RehearsalView: React.FC = () => {
                     value={editedLyrics}
                     onChange={(e) => setEditedLyrics(e.target.value)}
                     onClick={handleTextareaClick}
-                    className="flex-1 min-h-[500px] bg-white/[0.02] border-white/10 text-white p-8 font-mono text-xl leading-relaxed rounded-3xl focus:ring-1 focus:ring-primary/30"
+                    className="flex-1 min-h-[500px] bg-white/[0.02] border-white/10 text-white p-8 font-mono text-xl leading-relaxed rounded-3xl focus:ring-1 focus:ring-primary/30 custom-scrollbar"
                 />
             </div>
           ) : (
-            <div className="w-full max-w-5xl animate-in fade-in zoom-in-95 duration-500">
+            <div className="w-full max-w-5xl">
                 {viewMode === 'SLIDES' ? (
-                    <ChordSheet content={blocks[currentBlockIndex] || ''} showChords={showChords} />
+                    <div key={`${currentSongIndex}-${currentBlockIndex}`} className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex justify-center">
+                        <ChordSheet content={blocks[currentBlockIndex] || ''} showChords={showChords} />
+                    </div>
                 ) : (
-                    <ChordSheet content={fullContent} showChords={showChords} />
+                    <div className="space-y-12">
+                        {blocks.map((block, i) => (
+                           <div key={i} className={`transition-all duration-700 ${i === currentBlockIndex ? 'opacity-100 scale-105' : 'opacity-20 scale-95 blur-[1px]'}`}>
+                              <ChordSheet content={block} showChords={showChords} />
+                           </div>
+                        ))}
+                    </div>
                 )}
             </div>
           )}
         </div>
 
         {!isEditing && (
-            <footer className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-8 bg-[#18181b]/80 backdrop-blur-3xl px-8 py-4 rounded-[2.5rem] border border-white/10 shadow-2xl ring-1 ring-white/5">
-                <Button variant="ghost" size="icon" disabled={currentSongIndex === 0 && currentBlockIndex === 0} onClick={() => currentBlockIndex > 0 ? changeBlock(currentBlockIndex - 1) : changeSong(currentSongIndex - 1)} className="text-white hover:bg-white/10 rounded-2xl h-14 w-14 transition-all"><ChevronLeft className="h-10 w-10" /></Button>
+            <footer className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 bg-[#18181b]/60 backdrop-blur-3xl px-8 py-3 rounded-[2rem] border border-white/5 shadow-2xl ring-1 ring-white/5 z-30">
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    disabled={currentSongIndex === 0 && currentBlockIndex === 0} 
+                    onClick={() => currentBlockIndex > 0 ? changeBlock(currentBlockIndex - 1) : changeSong(currentSongIndex - 1)} 
+                    className="text-zinc-500 hover:text-white hover:bg-white/5 rounded-2xl h-12 w-12 transition-all disabled:opacity-20"
+                >
+                    <ChevronLeft className="h-8 w-8" />
+                </Button>
                 
-                <div className="flex flex-col items-center min-w-[120px]">
-                    <span className="text-[10px] text-primary font-black uppercase tracking-[0.3em] mb-1">DIAPOSITIVA</span>
-                    <span className="text-2xl font-black text-white font-mono">
-                        {String(currentBlockIndex + 1).padStart(2, '0')} <span className="text-zinc-700 mx-1">/</span> {String(blocks.length).padStart(2, '0')}
-                    </span>
+                <div className="flex items-center gap-4 px-4 border-x border-white/5">
+                    <div className="flex flex-col items-center min-w-[80px]">
+                        <span className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-0.5">Canción</span>
+                        <span className="text-sm font-black text-white font-mono">
+                            {String(currentSongIndex + 1).padStart(2, '0')} <span className="text-zinc-700">/</span> {String(rehearsal.songs.length).padStart(2, '0')}
+                        </span>
+                    </div>
+                    <div className="flex flex-col items-center min-w-[80px]">
+                        <span className="text-[9px] text-primary font-black uppercase tracking-[0.2em] mb-0.5">Slide</span>
+                        <span className="text-sm font-black text-white font-mono">
+                            {String(currentBlockIndex + 1).padStart(2, '0')} <span className="text-zinc-700">/</span> {String(blocks.length).padStart(2, '0')}
+                        </span>
+                    </div>
                 </div>
 
-                <Button variant="ghost" size="icon" disabled={currentSongIndex === (rehearsal?.songs.length || 0) - 1 && currentBlockIndex === blocks.length - 1} onClick={() => currentBlockIndex < blocks.length - 1 ? changeBlock(currentBlockIndex + 1) : changeSong(currentSongIndex + 1)} className="text-white hover:bg-white/10 rounded-2xl h-14 w-14 transition-all"><ChevronRight className="h-10 w-10" /></Button>
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    disabled={currentSongIndex === (rehearsal?.songs.length || 0) - 1 && currentBlockIndex === blocks.length - 1} 
+                    onClick={() => currentBlockIndex < blocks.length - 1 ? changeBlock(currentBlockIndex + 1) : changeSong(currentSongIndex + 1)} 
+                    className="text-zinc-500 hover:text-white hover:bg-white/5 rounded-2xl h-12 w-12 transition-all disabled:opacity-20"
+                >
+                    <ChevronRight className="h-8 w-8" />
+                </Button>
             </footer>
         )}
       </main>

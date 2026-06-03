@@ -11,21 +11,79 @@ interface ChordSheetProps {
  * Soporta modo normal (para ensayos) y modo compacto (para modales/detalle).
  */
 export const ChordSheet: React.FC<ChordSheetProps> = ({ content, showChords, size = 'normal' }) => {
-  const lines = content.split('\n');
+  const lines = content.split('\n').filter(l => l.trim() !== "" || l === "");
 
-  // Ajuste de tamaños según el prop 'size'
-  const chordSize = size === 'compact' ? 'text-lg md:text-xl' : 'text-2xl md:text-3xl lg:text-4xl';
-  const lyricsSize = size === 'compact' ? 'text-xl md:text-2xl' : 'text-2xl md:text-3xl lg:text-5xl';
-  const containerGap = size === 'compact' ? 'min-h-[2.5rem]' : 'min-h-[4.5rem]';
-  const chordHeight = size === 'compact' ? 'h-6' : 'h-10';
-  const marginOffset = size === 'compact' ? 'mt-6' : 'mt-12';
+  // Lógica de Auto-ajuste para evitar scroll
+  const getFontSize = () => {
+    if (size === 'compact') return { chord: 'text-lg', lyrics: 'text-xl', gap: 'min-h-[2.5rem]', height: 'h-6', offset: 'mt-6' };
+    
+    const maxLineLength = Math.max(...lines.map(l => l.replace(/\[.*?\]/g, '').length));
+    const lineCount = lines.length;
+
+    // Escalamiento agresivo basado en contenido
+    if (maxLineLength > 50 || lineCount > 12) {
+      return { 
+        chord: 'text-lg md:text-xl lg:text-2xl', 
+        lyrics: 'text-xl md:text-2xl lg:text-3xl', 
+        gap: 'min-h-[3rem]', 
+        height: 'h-8', 
+        offset: 'mt-8' 
+      };
+    }
+    if (maxLineLength > 35 || lineCount > 8) {
+      return { 
+        chord: 'text-xl md:text-2xl lg:text-3xl', 
+        lyrics: 'text-2xl md:text-3xl lg:text-4xl', 
+        gap: 'min-h-[4rem]', 
+        height: 'h-9', 
+        offset: 'mt-10' 
+      };
+    }
+    
+    // Default / Grande
+    return { 
+        chord: 'text-2xl md:text-3xl lg:text-4xl', 
+        lyrics: 'text-3xl md:text-5xl lg:text-6xl', 
+        gap: 'min-h-[5rem]', 
+        height: 'h-12', 
+        offset: 'mt-14' 
+    };
+  };
+
+  const styles = getFontSize();
+  const chordSize = styles.chord;
+  const lyricsSize = styles.lyrics;
+  const containerGap = styles.gap;
+  const chordHeight = styles.height;
+  const marginOffset = styles.offset;
 
   const renderLine = (line: string) => {
+    // Detección de etiquetas de sección (ej: [CORO], [PUENTE], etc.)
+    const sectionMatch = line.match(/^\[(CORO|PUENTE|VERSO|INTRO|ESTRIBILLO|FINAL|INSTRUMENTAL|SOLO|PIANO|GUITARRA).*?\]$/i);
+    
+    if (sectionMatch) {
+      const sectionName = sectionMatch[1].toUpperCase();
+      const colorClass = 
+        sectionName === 'CORO' || sectionName === 'ESTRIBILLO' ? 'bg-primary/20 text-primary border-primary/30' :
+        sectionName === 'PUENTE' ? 'bg-amber-500/20 text-amber-500 border-amber-500/30' :
+        sectionName === 'INTRO' || sectionName === 'FINAL' ? 'bg-zinc-500/20 text-zinc-500 border-zinc-500/30' :
+        'bg-blue-500/20 text-blue-500 border-blue-500/30';
+
+      return (
+        <div className="flex items-center gap-4 py-4 my-2">
+            <div className={`px-4 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.2em] ${colorClass} shadow-lg backdrop-blur-sm`}>
+                {sectionName}
+            </div>
+            <div className="h-px flex-1 bg-white/5" />
+        </div>
+      );
+    }
+
     const parts = line.split(/(\[.*?\])/g);
     let lastChord = "";
 
     return (
-      <div className={`flex flex-wrap items-end ${containerGap}`}>
+      <div className={`flex flex-wrap items-end ${containerGap} transition-all duration-300`}>
         {parts.map((part, i) => {
           if (part.startsWith('[') && part.endsWith(']')) {
             lastChord = part.slice(1, -1);
@@ -36,13 +94,13 @@ export const ChordSheet: React.FC<ChordSheetProps> = ({ content, showChords, siz
           lastChord = "";
 
           return (
-            <div key={i} className="relative flex flex-col items-start mr-[0.2em] transition-all">
+            <div key={i} className="relative flex flex-col items-start mr-[0.2em] group">
               {showChords && currentChord && (
-                <span className={`text-primary font-black ${chordSize} font-mono ${chordHeight} mb-1 select-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)] leading-none`}>
+                <span className={`text-primary font-black ${chordSize} font-mono ${chordHeight} mb-1 select-none drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] leading-none animate-in fade-in zoom-in-75 duration-300`}>
                   {currentChord}
                 </span>
               )}
-              <span className={`text-white ${lyricsSize} font-bold whitespace-pre-wrap tracking-tight ${!currentChord && showChords ? marginOffset : ''}`}>
+              <span className={`text-white ${lyricsSize} font-bold whitespace-pre-wrap tracking-tight drop-shadow-sm ${!currentChord && showChords ? marginOffset : ''}`}>
                 {part || (currentChord ? "   " : "")}
               </span>
             </div>

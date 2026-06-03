@@ -7,13 +7,15 @@ import {
   Music2, 
   Type,
   Pointer,
-  Keyboard
+  Keyboard,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/presentation/components/ui/button';
 import { Input } from '@/presentation/components/ui/input';
 import { Label } from '@/presentation/components/ui/label';
 import { Textarea } from '@/presentation/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/card';
+import { ChordSheet } from '../components/rehearsal/ChordSheet';
 
 const COMMON_CHORDS = ["C", "D", "E", "F", "G", "A", "B", "Cm", "Dm", "Em", "Am", "Bm", "Bb", "Eb", "F#", "G#", "C7", "D7", "G7"];
 
@@ -30,7 +32,7 @@ export const EditSongView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [editMode, setEditMode] = useState<'TEXT' | 'CHORDS'>('TEXT');
+  const [editMode, setEditMode] = useState<'TEXT' | 'CHORDS' | 'PREVIEW'>('TEXT');
   const [activeCursorPos, setActiveCursorPos] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -129,6 +131,13 @@ export const EditSongView: React.FC = () => {
              >
                 <Pointer className="h-4 w-4 mr-2" /> Acordes
              </Button>
+             <Button 
+                variant={editMode === 'PREVIEW' ? 'secondary' : 'ghost'} 
+                onClick={() => setEditMode('PREVIEW')}
+                className={`rounded-xl px-6 ${editMode === 'PREVIEW' ? 'bg-white/10 text-white shadow-lg' : 'text-zinc-500'}`}
+             >
+                <Eye className="h-4 w-4 mr-2" /> Vista Previa
+             </Button>
           </div>
         </header>
 
@@ -211,20 +220,26 @@ export const EditSongView: React.FC = () => {
             <Card className="border-white/5 bg-white/5 backdrop-blur-md rounded-3xl shadow-2xl h-full min-h-[600px] flex flex-col">
               <CardHeader className="bg-white/[0.02] border-b border-white/5 flex flex-row items-center justify-between">
                 <CardTitle className="text-white flex items-center gap-3 text-xs uppercase tracking-widest font-black">
-                  <Type className="h-4 w-4 text-primary" /> 
-                  {editMode === 'TEXT' ? 'Editor de Letra' : 'Editor de Acordes (Haz clic en la letra)'}
+                  {editMode === 'PREVIEW' ? <Eye className="h-4 w-4 text-primary" /> : <Type className="h-4 w-4 text-primary" />}
+                  {editMode === 'TEXT' ? 'Editor de Letra' : editMode === 'CHORDS' ? 'Editor de Acordes (Haz clic en la letra)' : 'Vista Previa'}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex-1 p-0 relative">
-                <Textarea 
-                  ref={textareaRef}
-                  value={lyrics}
-                  onChange={(e) => setLyrics(e.target.value)}
-                  onClick={handleTextareaClick}
-                  placeholder="Escribe la letra aquí..."
-                  required
-                  className={`w-full h-full min-h-[600px] bg-transparent border-none text-white p-8 font-sans text-xl md:text-2xl leading-relaxed custom-scrollbar focus-visible:ring-0 resize-none ${editMode === 'CHORDS' ? 'cursor-crosshair caret-primary' : ''}`}
-                />
+              <CardContent className={`flex-1 relative ${editMode === 'PREVIEW' ? 'p-10 md:p-16 overflow-y-auto custom-scrollbar' : 'p-0'}`}>
+                {editMode === 'PREVIEW' ? (
+                  <div className="max-w-3xl mx-auto">
+                    <ChordSheet content={lyrics} showChords={true} size="normal" />
+                  </div>
+                ) : (
+                  <Textarea 
+                    ref={textareaRef}
+                    value={lyrics}
+                    onChange={(e) => setLyrics(e.target.value)}
+                    onClick={handleTextareaClick}
+                    placeholder="Escribe la letra aquí..."
+                    required
+                    className={`w-full h-full min-h-[600px] bg-transparent border-none text-white p-8 font-sans text-xl md:text-2xl leading-relaxed custom-scrollbar focus-visible:ring-0 resize-none ${editMode === 'CHORDS' ? 'cursor-crosshair caret-primary' : ''}`}
+                  />
+                )}
               </CardContent>
             </Card>
           </div>

@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, 
   UserPlus, 
-  Save, 
   User as UserIcon,
   ShieldCheck,
   Music

@@ -546,7 +546,7 @@ export const RehearsalView: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-10 md:p-20 scrollbar-hide select-none flex flex-col items-center">
+        <div className="flex-1 overflow-y-auto p-10 md:p-20 scrollbar-hide select-none flex flex-col items-center justify-center min-h-0 relative">
           {isEditing ? (
             <div className="max-w-4xl mx-auto w-full h-full flex flex-col space-y-4 animate-in fade-in duration-300">
                 <Textarea 
@@ -558,13 +558,13 @@ export const RehearsalView: React.FC = () => {
                 />
             </div>
           ) : (
-            <div className="w-full max-w-5xl">
+            <div className="w-full max-w-5xl flex flex-col items-center justify-center min-h-[60vh]">
                 {viewMode === 'SLIDES' ? (
-                    <div key={`${currentSongIndex}-${currentBlockIndex}`} className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex justify-center">
+                    <div key={`${currentSongIndex}-${currentBlockIndex}`} className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex justify-center w-full">
                         <ChordSheet content={blocks[currentBlockIndex] || ''} showChords={showChords} />
                     </div>
                 ) : (
-                    <div className="space-y-12">
+                    <div className="space-y-12 w-full py-20">
                         {blocks.map((block, i) => (
                            <div key={i} className={`transition-all duration-700 ${i === currentBlockIndex ? 'opacity-100 scale-105' : 'opacity-20 scale-95 blur-[1px]'}`}>
                               <ChordSheet content={block} showChords={showChords} />

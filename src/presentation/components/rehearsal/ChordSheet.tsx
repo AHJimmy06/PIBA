@@ -13,15 +13,15 @@ interface ChordSheetProps {
 export const ChordSheet: React.FC<ChordSheetProps> = ({ content, showChords, size = 'normal' }) => {
   const lines = content.split('\n').filter(l => l.trim() !== "" || l === "");
 
-  // Lógica de Auto-ajuste para evitar scroll
+  // Lógica de Auto-ajuste Estabilizada
   const getFontSize = () => {
     if (size === 'compact') return { chord: 'text-lg', lyrics: 'text-xl', gap: 'min-h-[2.5rem]', height: 'h-6', offset: 'mt-6' };
     
     const maxLineLength = Math.max(...lines.map(l => l.replace(/\[.*?\]/g, '').length));
     const lineCount = lines.length;
 
-    // Escalamiento agresivo basado en contenido
-    if (maxLineLength > 50 || lineCount > 12) {
+    // Escalamiento hacia abajo solo si es necesario (Baseline Size)
+    if (maxLineLength > 55 || lineCount > 10) {
       return { 
         chord: 'text-lg md:text-xl lg:text-2xl', 
         lyrics: 'text-xl md:text-2xl lg:text-3xl', 
@@ -30,23 +30,14 @@ export const ChordSheet: React.FC<ChordSheetProps> = ({ content, showChords, siz
         offset: 'mt-8' 
       };
     }
-    if (maxLineLength > 35 || lineCount > 8) {
-      return { 
-        chord: 'text-xl md:text-2xl lg:text-3xl', 
-        lyrics: 'text-2xl md:text-3xl lg:text-4xl', 
-        gap: 'min-h-[4rem]', 
-        height: 'h-9', 
-        offset: 'mt-10' 
-      };
-    }
     
-    // Default / Grande
+    // TAMAÑO ESTÁNDAR (CAP) - Evita que se haga gigante si hay poco texto
     return { 
-        chord: 'text-2xl md:text-3xl lg:text-4xl', 
-        lyrics: 'text-3xl md:text-5xl lg:text-6xl', 
-        gap: 'min-h-[5rem]', 
-        height: 'h-12', 
-        offset: 'mt-14' 
+        chord: 'text-xl md:text-2xl lg:text-3xl', 
+        lyrics: 'text-2xl md:text-4xl lg:text-5xl', 
+        gap: 'min-h-[4rem]', 
+        height: 'h-10', 
+        offset: 'mt-12' 
     };
   };
 

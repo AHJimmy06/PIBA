@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "upload-background": {
+      "main": "index.ts"
+    }
+  }
+}

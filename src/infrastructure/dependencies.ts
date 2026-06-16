@@ -1,6 +1,7 @@
 import { SupabaseUserRepository } from "./repositories/SupabaseUserRepository";
 import { SupabaseSongRepository } from "./repositories/SupabaseSongRepository";
 import { SupabaseRehearsalRepository } from "./repositories/SupabaseRehearsalRepository";
+import { SupabaseBackgroundRepository } from "./repositories/SupabaseBackgroundRepository";
 import { SupabaseRealtimeService } from "./services/SupabaseRealtimeService";
 import { BrowserWindowService } from "./services/BrowserWindowService";
 
@@ -17,11 +18,15 @@ import { DeleteSongUseCase } from "../core/use-cases/DeleteSongUseCase";
 import { DeleteRehearsalUseCase } from "../core/use-cases/DeleteRehearsalUseCase";
 import { UpdateUserProfileUseCase } from "../core/use-cases/UpdateUserProfileUseCase";
 import { GetSongByIdUseCase } from "../core/use-cases/GetSongByIdUseCase";
+import { UploadBackgroundUseCase } from "../core/use-cases/UploadBackgroundUseCase";
+import { GetBackgroundsUseCase } from "../core/use-cases/GetBackgroundsUseCase";
+import { DeleteBackgroundUseCase } from "../core/use-cases/DeleteBackgroundUseCase";
 
 // 1. Instanciamos la Infraestructura (Singletons)
 const userRepository = new SupabaseUserRepository();
 const songRepository = new SupabaseSongRepository();
 const rehearsalRepository = new SupabaseRehearsalRepository();
+const backgroundRepository = new SupabaseBackgroundRepository();
 
 const syncService = new SupabaseRealtimeService();
 const windowService = new BrowserWindowService();
@@ -40,6 +45,9 @@ export const dependencies = {
   deleteSong: new DeleteSongUseCase(songRepository),
   deleteRehearsal: new DeleteRehearsalUseCase(rehearsalRepository),
   updateUserProfile: new UpdateUserProfileUseCase(userRepository),
+  uploadBackground: new UploadBackgroundUseCase(backgroundRepository),
+  getBackgrounds: new GetBackgroundsUseCase(backgroundRepository),
+  deleteBackground: new DeleteBackgroundUseCase(backgroundRepository),
 
   // Servicios
   syncService,
@@ -48,7 +56,8 @@ export const dependencies = {
   // Repositorios
   rehearsalRepository,
   songRepository,
-  userRepository
+  userRepository,
+  backgroundRepository
 };
 
 export type Dependencies = typeof dependencies;

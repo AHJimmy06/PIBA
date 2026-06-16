@@ -41,3 +41,11 @@ Desktop.ini
 GEMINI.md
 # Local Pi runtime state
 .atl/
+# Opencode / agent state
+.pi/
+.agents/
+skills-lock.json
+# Supabase temp
+supabase/.temp/
+# Misc
+canciones.txt

@@ -21,4 +21,7 @@ export interface RehearsalRepository {
 
     // Elimina un ensayo y todas sus relaciones asociadas
     delete(id: string): Promise<void>;
+
+    // Asigna un fondo de pantalla a un ensayo específico
+    setBackground(rehearsalId: string, backgroundId: string | null): Promise<void>;
 }

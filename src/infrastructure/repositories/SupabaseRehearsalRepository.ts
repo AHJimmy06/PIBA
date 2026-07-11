@@ -160,4 +160,15 @@ export class SupabaseRehearsalRepository implements RehearsalRepository {
       throw new Error(`Error al eliminar el ensayo: ${error.message}`);
     }
   }
+
+  async setBackground(rehearsalId: string, backgroundId: string | null): Promise<void> {
+    const { error } = await supabase
+      .from(this.TABLE_NAME)
+      .update({ background_id: backgroundId })
+      .eq("id", rehearsalId);
+
+    if (error) {
+      throw new Error(`Error al asignar el fondo: ${error.message}`);
+    }
+  }
 }

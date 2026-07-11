@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDependencies } from '../context/DependenciesProvider';
 import { useAuth } from '../context/AuthContext';
-import { 
-  ArrowLeft, 
-  UserPlus, 
+import {
+  ArrowLeft,
+  UserPlus,
   User as UserIcon,
   ShieldCheck,
   Music
@@ -24,17 +24,17 @@ export const CreateUserView: React.FC = () => {
   const [lastName, setLastName] = useState('');
   const [role, setRole] = useState<Role>('GENERAL');
   const [instrument, setInstrument] = useState('');
-  
+
   const [saving, setSaving] = useState(false);
   const [createdUser, setCreatedUser] = useState<{name: string, code: string} | null>(null);
 
   // Protección de ruta (solo líderes)
   if (!currentUser || currentUser.role !== 'LIDER_REPASO') {
     return (
-      <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center p-6 text-center">
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-center">
         <div className="space-y-4">
-          <h1 className="text-2xl font-bold text-white">Acceso Denegado</h1>
-          <p className="text-zinc-500">Solo los líderes de alabanza pueden crear usuarios.</p>
+          <h1 className="text-2xl font-bold text-foreground">Acceso Denegado</h1>
+          <p className="text-muted-foreground">Solo los líderes de alabanza pueden crear usuarios.</p>
           <Button onClick={() => navigate('/dashboard')}>Volver al Dashboard</Button>
         </div>
       </div>
@@ -58,7 +58,7 @@ export const CreateUserView: React.FC = () => {
         name: `${newUser.firstName} ${newUser.lastName}`,
         code: newUser.accessCode || 'Error al generar'
       });
-      
+
       // Limpiar formulario
       setFirstName('');
       setLastName('');
@@ -72,20 +72,20 @@ export const CreateUserView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] p-6 md:p-10 selection:bg-primary/30">
+    <div className="min-h-screen bg-background p-6 md:p-10 selection:bg-primary/30">
       <div className="max-w-2xl mx-auto space-y-10">
         <header className="flex items-center gap-6">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => navigate('/dashboard')}
-            className="text-zinc-400 hover:text-white rounded-2xl bg-white/5 h-12 w-12"
+            className="text-muted-foreground hover:text-foreground rounded-2xl bg-accent h-12 w-12"
           >
             <ArrowLeft className="h-6 w-6" />
           </Button>
           <div>
-            <h1 className="text-4xl font-extrabold text-white tracking-tight">Nuevo Integrante</h1>
-            <p className="text-zinc-500 text-lg">Registra un nuevo músico en el equipo.</p>
+            <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Nuevo Integrante</h1>
+            <p className="text-muted-foreground text-lg">Registra un nuevo músico en el equipo.</p>
           </div>
         </header>
 
@@ -95,15 +95,15 @@ export const CreateUserView: React.FC = () => {
               <ShieldCheck className="h-6 w-6" />
               <h3 className="font-bold text-xl">¡Usuario Creado Exitosamente!</h3>
             </div>
-            <p className="text-zinc-300">
-              El integrante <span className="text-white font-bold">{createdUser.name}</span> ya puede iniciar sesión.
+            <p className="text-muted-foreground">
+              El integrante <span className="text-foreground font-bold">{createdUser.name}</span> ya puede iniciar sesión.
             </p>
-            <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
-              <p className="text-zinc-500 text-xs uppercase tracking-widest mb-1">Código de Acceso</p>
-              <p className="text-3xl font-mono font-black text-white tracking-tighter">{createdUser.code}</p>
+            <div className="bg-black/40 p-4 rounded-2xl border border-border">
+              <p className="text-muted-foreground text-xs uppercase tracking-widest mb-1">Código de Acceso</p>
+              <p className="text-3xl font-mono font-black text-foreground tracking-tighter">{createdUser.code}</p>
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full border-primary/20 text-primary hover:bg-primary/10"
               onClick={() => setCreatedUser(null)}
             >
@@ -114,9 +114,9 @@ export const CreateUserView: React.FC = () => {
 
         {!createdUser && (
           <form onSubmit={handleSubmit} className="space-y-8">
-            <Card className="border-white/5 bg-white/5 backdrop-blur-md rounded-3xl overflow-hidden shadow-2xl">
-              <CardHeader className="bg-white/[0.02] border-b border-white/5">
-                <CardTitle className="text-white flex items-center gap-3">
+            <Card className="border-border bg-accent backdrop-blur-md rounded-3xl overflow-hidden shadow-2xl">
+              <CardHeader className="bg-accent/50 border-b border-border">
+                <CardTitle className="text-foreground flex items-center gap-3">
                   <div className="p-2 bg-primary/20 rounded-lg">
                     <UserIcon className="h-5 w-5 text-primary" />
                   </div>
@@ -126,21 +126,21 @@ export const CreateUserView: React.FC = () => {
               <CardContent className="space-y-6 pt-6 text-left">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <Label className="text-zinc-400 font-bold ml-1">Nombre</Label>
-                    <Input 
-                      required 
+                    <Label className="text-muted-foreground font-bold ml-1">Nombre</Label>
+                    <Input
+                      required
                       placeholder="Ej: Juan"
-                      className="bg-zinc-900/50 border-white/10 text-white h-12 rounded-xl focus:ring-primary focus:border-primary"
+                      className="bg-input border-border text-foreground h-12 rounded-xl focus:ring-primary focus:border-primary"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                     />
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-zinc-400 font-bold ml-1">Apellido</Label>
-                    <Input 
-                      required 
+                    <Label className="text-muted-foreground font-bold ml-1">Apellido</Label>
+                    <Input
+                      required
                       placeholder="Ej: Pérez"
-                      className="bg-zinc-900/50 border-white/10 text-white h-12 rounded-xl focus:ring-primary focus:border-primary"
+                      className="bg-input border-border text-foreground h-12 rounded-xl focus:ring-primary focus:border-primary"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                     />
@@ -148,15 +148,15 @@ export const CreateUserView: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-zinc-400 font-bold ml-1">Rol en la Plataforma</Label>
+                  <Label className="text-muted-foreground font-bold ml-1">Rol en la Plataforma</Label>
                   <div className="grid grid-cols-2 gap-4">
                     <button
                       type="button"
                       onClick={() => setRole('GENERAL')}
                       className={`p-4 rounded-2xl border-2 transition-all text-left space-y-1 ${
-                        role === 'GENERAL' 
-                        ? 'border-primary bg-primary/10 text-white' 
-                        : 'border-white/5 bg-white/5 text-zinc-500 hover:bg-white/10'
+                        role === 'GENERAL'
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-accent text-muted-foreground hover:bg-accent/80'
                       }`}
                     >
                       <p className="font-bold">Integrante</p>
@@ -166,9 +166,9 @@ export const CreateUserView: React.FC = () => {
                       type="button"
                       onClick={() => setRole('LIDER_REPASO')}
                       className={`p-4 rounded-2xl border-2 transition-all text-left space-y-1 ${
-                        role === 'LIDER_REPASO' 
-                        ? 'border-primary bg-primary/10 text-white' 
-                        : 'border-white/5 bg-white/5 text-zinc-500 hover:bg-white/10'
+                        role === 'LIDER_REPASO'
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-accent text-muted-foreground hover:bg-accent/80'
                       }`}
                     >
                       <p className="font-bold">Líder</p>
@@ -178,38 +178,38 @@ export const CreateUserView: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-zinc-400 font-bold ml-1 flex items-center gap-2">
+                  <Label className="text-muted-foreground font-bold ml-1 flex items-center gap-2">
                     <Music className="h-4 w-4" /> Instrumento Principal
                   </Label>
-                  <select 
+                  <select
                     value={instrument}
                     onChange={(e) => setInstrument(e.target.value)}
-                    className="w-full bg-zinc-900/50 border border-white/10 text-white h-12 rounded-xl px-4 focus:ring-2 focus:ring-primary focus:border-primary outline-none appearance-none cursor-pointer"
+                    className="w-full bg-input border-border text-foreground h-12 rounded-xl px-4 focus:ring-2 focus:ring-primary focus:border-primary outline-none appearance-none cursor-pointer"
                   >
-                    <option value="" className="bg-[#0f0f1a]">Seleccionar instrumento...</option>
+                    <option value="">Seleccionar instrumento...</option>
                     {[
-                      "Piano", 
-                      "Guitarra Acústica", 
-                      "Guitarra Eléctrica", 
-                      "Violín", 
-                      "Batería", 
-                      "Batería Eléctrica", 
-                      "Bajo", 
+                      "Piano",
+                      "Guitarra Acústica",
+                      "Guitarra Eléctrica",
+                      "Violín",
+                      "Batería",
+                      "Batería Eléctrica",
+                      "Bajo",
                       "Saxofón",
                       "Voz"
                     ].map(inst => (
-                      <option key={inst} value={inst} className="bg-[#0f0f1a]">{inst}</option>
+                      <option key={inst} value={inst}>{inst}</option>
                     ))}
-                    <option value="Otro" className="bg-[#0f0f1a]">Otro / General</option>
+                    <option value="Otro">Otro / General</option>
                   </select>
                 </div>
               </CardContent>
             </Card>
-            
-            <Button 
-              type="submit" 
+
+            <Button
+              type="submit"
               disabled={saving || !firstName.trim() || !lastName.trim()}
-              className="w-full h-16 bg-primary hover:bg-primary/90 text-white font-black text-xl rounded-3xl shadow-2xl shadow-primary/20 transition-all active:scale-95 disabled:opacity-50"
+              className="w-full h-16 bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xl rounded-3xl shadow-2xl shadow-primary/20 transition-all active:scale-95 disabled:opacity-50"
             >
               <UserPlus className="h-6 w-6 mr-3" /> {saving ? 'Registrando...' : 'REGISTRAR INTEGRANTE'}
             </Button>

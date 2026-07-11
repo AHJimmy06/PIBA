@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "delete-background": {
+      "main": "index.ts"
+    }
+  }
+}

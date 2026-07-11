@@ -2,6 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme migration: change these values to update all colors at once */
+/*
+  =============================================================================
+  SHADCN CSS VARIABLE THEME BASE
+  =============================================================================
+  This section establishes the design token layer for shadcn/ui components.
+  All theme colors are routed through CSS variables enabling single-variable
+  theme changes across the entire application.
+
+  VARIABLE REFERENCE:
+  -------------------------------------------------------------------------------
+  --background       : Page background (hsl default: 222.2 84% 4.9% = dark navy)
+  --foreground       : Primary text color (hsl default: 210 40% 98% = white)
+  --primary          : Primary brand/accent color (hsl default: 263.4 70% 50.4% = purple)
+  --primary-foreground: Text on primary color
+  --secondary        : Secondary surfaces (hsl default: 217.2 32.6% 17.5% = dark gray)
+  --secondary-foreground: Text on secondary surfaces
+  --muted            : Subtle backgrounds (hsl default: 217.2 32.6% 17.5%)
+  --muted-foreground : Muted/subtle text (hsl default: 215 20.2% 65.1% = medium gray)
+  --accent           : Accent surfaces (hsl default: 217.2 32.6% 17.5%)
+  --accent-foreground : Text on accent surfaces
+  --destructive      : Error/danger color (hsl default: 0 62.8% 30.6% = red)
+  --destructive-foreground: Text on destructive
+  --border           : Border color (hsl default: 217.2 32.6% 17.5%)
+  --input            : Input field backgrounds (hsl default: 217.2 32.6% 17.5%)
+  --ring             : Focus ring color (hsl default: 263.4 70% 50.4% = purple)
+  --card             : Card backgrounds (hsl default: 222.2 84% 4.9%)
+  --card-foreground  : Text on cards
+  --popover          : Popover backgrounds (hsl default: 222.2 84% 4.9%)
+  --popover-foreground: Text in popovers
+  --radius           : Border radius base (default: 0.5rem)
+
+  SEMANTIC COLORS (NOT theme variables - preserved during migration):
+  -------------------------------------------------------------------------------
+  - red-500, emerald-500 : Rehearsal status indicators (IN_PROGRESS, READY)
+  - amber-500, blue-500, zinc-500 : Chord quality colors in ChordSheet
+  - LoginView gradient: from-[#1e1e2e] to-[#12121a]
+  - bg-black/80 : Modal backdrops
+
+  TO CHANGE THE THEME: Modify the --background, --foreground, etc. values below.
+  All components using bg-background, text-foreground, etc. will update automatically.
+  =============================================================================
+*/
+
 @layer base {
   :root {
     --background: 222.2 84% 4.9%;

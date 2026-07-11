@@ -1,4 +1,5 @@
-import { defineConfig } from 'vite';
+/// <reference types="vitest" />
+import { defineConfig } from 'vitest/config';
 import plugin from '@vitejs/plugin-react';
 import path from 'path';
 
@@ -15,5 +16,10 @@ export default defineConfig({
     },
     server: {
         port: 63437,
-    }
+    },
+    test: {
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: './src/test/setup.ts',
+    },
 })

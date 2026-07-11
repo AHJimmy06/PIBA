@@ -1,5 +1,6 @@
 import React from 'react';
 import { Separator } from '@/presentation/components/ui/separator';
+import { Badge } from '@/presentation/components/ui/badge';
 
 interface ChordSheetProps {
   content: string;
@@ -63,9 +64,9 @@ export const ChordSheet: React.FC<ChordSheetProps> = ({ content, showChords, siz
 
       return (
         <div className="flex items-center gap-4 py-4 my-2">
-            <div className={`px-4 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.2em] ${colorClass} shadow-lg backdrop-blur-sm`}>
+            <Badge variant="secondary" className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] ${colorClass} shadow-lg backdrop-blur-sm`}>
                 {sectionName}
-            </div>
+            </Badge>
             <Separator className="flex-1 bg-border" />
         </div>
       );

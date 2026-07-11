@@ -30,6 +30,7 @@ import { ChordSheet } from '../components/rehearsal/ChordSheet';
 import { BackgroundManager } from '../components/rehearsal/BackgroundManager';
 import { Textarea } from '@/presentation/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/card';
+import { Badge } from '@/presentation/components/ui/badge';
 import { transposeChords } from '@/lib/utils';
 import type { BackgroundAsset } from '@/core/domain/entities/BackgroundAsset';
 
@@ -664,9 +665,9 @@ export const RehearsalView: React.FC = () => {
             <div className="text-left">
               <h1 className="text-2xl font-black text-foreground tracking-tight leading-none mb-1">{currentRS?.songDetails?.title}</h1>
               <div className="flex items-center gap-3">
-                 <span className="px-2 py-0.5 bg-muted text-muted-foreground rounded text-[10px] font-bold tracking-widest uppercase">
-                    {customVersion ? `VERSION PERSONALIZADA` : `TONO ORIGINAL: ${currentRS?.songDetails?.baseChords}`}
-                 </span>
+                   <Badge variant="outline" className="bg-muted text-muted-foreground border-0 text-[10px] tracking-widest uppercase">
+                      {customVersion ? `VERSION PERSONALIZADA` : `TONO ORIGINAL: ${currentRS?.songDetails?.baseChords}`}
+                   </Badge>
                  <div className="flex gap-1">
                     {rehearsal.songs.map((_, i) => (
                       <div key={i} className={`h-1 w-3 rounded-full transition-all ${i === currentSongIndex ? 'bg-primary w-6' : 'bg-muted'}`} />

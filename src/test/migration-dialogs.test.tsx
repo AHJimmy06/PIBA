@@ -167,6 +167,15 @@ describe('migrated dialog contracts', () => {
     expect(mocks.login).toHaveBeenCalledWith(expect.objectContaining({ accessCode: 'new-code' }));
   });
 
+  it('labels every profile form control by its accessible name', () => {
+    render(<DashboardView />);
+    fireEvent.click(screen.getByRole('button', { name: /Ada Leader/ }));
+
+    expect(screen.getByRole('textbox', { name: 'Nombre' })).toHaveAttribute('id', 'profile-first-name');
+    expect(screen.getByRole('textbox', { name: 'Apellido' })).toHaveAttribute('id', 'profile-last-name');
+    expect(screen.getByRole('combobox', { name: 'Instrumento por Defecto' })).toHaveAttribute('id', 'profile-instrument');
+  });
+
   it('resets the profile dialog to its edit form after closing the access-code step', async () => {
     mocks.updateUserProfile.mockResolvedValueOnce({ ...user, accessCode: 'new-code' });
 

@@ -406,8 +406,9 @@ export const DashboardView: React.FC = () => {
               <form onSubmit={handleProfileSave} className="space-y-6 text-left">
                   <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-2">
-                    <Label className="text-zinc-400 font-bold ml-1">Nombre</Label>
+                    <Label htmlFor="profile-first-name" className="text-zinc-400 font-bold ml-1">Nombre</Label>
                     <Input
+                      id="profile-first-name"
                       value={profileFirstName}
                       onChange={(e) => setProfileFirstName(e.target.value)}
                       required
@@ -415,8 +416,9 @@ export const DashboardView: React.FC = () => {
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Label className="text-zinc-400 font-bold ml-1">Apellido</Label>
+                    <Label htmlFor="profile-last-name" className="text-zinc-400 font-bold ml-1">Apellido</Label>
                     <Input
+                      id="profile-last-name"
                       value={profileLastName}
                       onChange={(e) => setProfileLastName(e.target.value)}
                       required
@@ -424,12 +426,12 @@ export const DashboardView: React.FC = () => {
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Label className="text-zinc-400 font-bold ml-1">Instrumento por Defecto</Label>
+                    <Label htmlFor="profile-instrument" className="text-zinc-400 font-bold ml-1">Instrumento por Defecto</Label>
                     <Select
                       value={profileInstrument}
                       onValueChange={setProfileInstrument}
                     >
-                      <SelectTrigger className="h-12 border-white/10 bg-zinc-900/50 text-white">
+                      <SelectTrigger id="profile-instrument" className="h-12 border-white/10 bg-zinc-900/50 text-white">
                         <SelectValue placeholder="General / Otro" />
                       </SelectTrigger>
                       <SelectContent className="border-white/10 bg-[#0f0f1a] text-white">

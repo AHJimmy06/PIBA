@@ -1,5 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    {
+      "source": "/api/session/:action",
+      "destination": "/api/session?action=:action"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

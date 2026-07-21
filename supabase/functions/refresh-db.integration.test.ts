@@ -4,6 +4,7 @@ import { profileHandler } from "./session-profile/index.ts";
 
 const container = Deno.env.get("PIBA_SESSION_DB_CONTAINER");
 const apiKey = "integration-anon-key";
+const proxySecret = "integration-proxy-secret";
 
 const sql = async (script: string, variables: Record<string, string> = {}) => {
   const args = [
@@ -47,6 +48,7 @@ Deno.test({
   ignore: !container,
   fn: async () => {
     Deno.env.set("SUPABASE_ANON_KEY", apiKey);
+    Deno.env.set("PIBA_PROXY_SECRET", proxySecret);
     const actor = await sql(
       "select id from public.users order by id limit 1;\n",
     );
@@ -175,6 +177,7 @@ Deno.test({
         method: "POST",
         headers: {
           apikey: apiKey,
+          "x-piba-proxy-secret": proxySecret,
           authorization: "Bearer old-token",
           "x-piba-operation-id": operationId,
         },
@@ -216,7 +219,11 @@ Deno.test({
       };
       return (await profileHandler(
         new Request("http://localhost/profile", {
-          headers: { apikey: apiKey, authorization: "Bearer token" },
+          headers: {
+            apikey: apiKey,
+            authorization: "Bearer token",
+            "x-piba-proxy-secret": proxySecret,
+          },
         }),
         {
           id: () => "request-1",

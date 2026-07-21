@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDependencies } from '../context/DependenciesProvider';
 import { useAuth } from '../context/AuthContext';
@@ -9,12 +9,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Music2 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
+  const { user, revocationWarning, login } = useAuth();
   const { userRepository } = useDependencies();
-  const { login } = useAuth();
   const navigate = useNavigate();
   const [userId, setUserId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) navigate('/dashboard', { replace: true });
+  }, [navigate, user]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,18 +33,16 @@ export const LoginView: React.FC = () => {
     setLoading(true);
 
     try {
-      // Intentar login ÚNICAMENTE con Access Code
-      const user = await userRepository.getByAccessCode(input);
+      const user = await userRepository.login(input);
 
       if (user) {
         login(user);
         navigate('/dashboard');
       } else {
-        setError('Código de acceso incorrecto. Verifica e intenta de nuevo.');
+        setError('No se pudo iniciar sesión. Verifica el código e intenta nuevamente.');
       }
-    } catch (err) {
-      setError('Error de conexión con la base de datos.');
-      console.error(err);
+    } catch {
+      setError('No se pudo iniciar sesión. Verifica el código e intenta nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -59,6 +61,13 @@ export const LoginView: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {revocationWarning && (
+            <div role="alert" className="mb-4 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-100">
+              <p className="font-semibold">No pudimos confirmar el cierre de sesión en el servidor.</p>
+              <p>La sesión continúa activa. Revisá la conexión e intentá cerrar sesión nuevamente.</p>
+              {revocationWarning.requestId && <p className="mt-1 font-mono text-xs">Solicitud: {revocationWarning.requestId}</p>}
+            </div>
+          )}
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2 text-left">
               <Label htmlFor="userId" className="text-muted-foreground">

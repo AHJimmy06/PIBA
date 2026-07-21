@@ -16,6 +16,7 @@ import { type UsersDependencies, usersHandler } from "./session-users/index.ts";
 
 const origin = "https://app.example";
 const apiKey = "test-anon-key";
+const proxySecret = "test-proxy-secret";
 const url = "http://localhost/functions/v1/test";
 const claims = {
   sub: "actor-1",
@@ -40,12 +41,16 @@ const request = (
   authorization = "Bearer valid",
   projectKey: string | null = apiKey,
   idempotencyKey: string | null = "00000000-0000-4000-8000-000000000011",
+  suppliedProxySecret: string | null = proxySecret,
 ) =>
   new Request(url, {
     method,
     headers: {
       origin,
       ...(projectKey === null ? {} : { apikey: projectKey }),
+      ...(suppliedProxySecret === null
+        ? {}
+        : { "x-piba-proxy-secret": suppliedProxySecret }),
       authorization,
       "x-piba-operation-id": "00000000-0000-4000-8000-000000000001",
       ...(idempotencyKey === null ? {} : { "idempotency-key": idempotencyKey }),
@@ -126,7 +131,9 @@ const logoutDeps = (): LogoutDependencies => ({
   hash: bytes,
   rpc:
     (async (name: string) =>
-      name === "consume_endpoint_limit" ? true : null) as LogoutDependencies[
+      name === "consume_endpoint_limit" || name === "session_revoke"
+        ? true
+        : null) as LogoutDependencies[
         "rpc"
       ],
   logger,
@@ -209,6 +216,7 @@ const endpoints = [
 
 Deno.env.set("PIBA_ALLOWED_ORIGINS", origin);
 Deno.env.set("SUPABASE_ANON_KEY", apiKey);
+Deno.env.set("PIBA_PROXY_SECRET", proxySecret);
 
 for (const endpoint of endpoints) {
   Deno.test(`${endpoint.name}: origin, OPTIONS, and method matrix`, async () => {
@@ -231,6 +239,25 @@ for (const endpoint of endpoints) {
     const response = await endpoint.run(request(wrongMethod));
     assertEquals(response.status, 405);
     assertEquals(await json(response), generic);
+  });
+}
+
+for (const endpoint of endpoints) {
+  Deno.test(`${endpoint.name}: missing and invalid proxy secret stop privileged work`, async () => {
+    for (const secret of [null, "invalid-secret"]) {
+      const response = await endpoint.run(
+        request(
+          endpoint.method,
+          endpoint.method === "POST" ? "{}" : undefined,
+          "Bearer valid",
+          apiKey,
+          "00000000-0000-4000-8000-000000000011",
+          secret,
+        ),
+      );
+      assertEquals(response.status, 401);
+      assertEquals(await json(response), generic);
+    }
   });
 }
 
@@ -356,6 +383,24 @@ Deno.test("refresh and logout: durable operation and success output matrix", asy
         ? [{ status: "replay" }]
         : [{ status: "replay_revoked" }]) as RefreshDependencies["rpc"];
   assertEquals((await refreshHandler(request("POST"), replay)).status, 401);
+});
+
+Deno.test("logout: false or failed revocation is non-success and never confirms logout", async () => {
+  for (const outcome of [false, "error"] as const) {
+    const deps = logoutDeps();
+    const baseRpc = deps.rpc;
+    deps.rpc = (async (name: string, args: Record<string, unknown>) => {
+      if (name !== "session_revoke") return baseRpc(name, args);
+      if (outcome === "error") throw new Error("database operation failed");
+      return false;
+    }) as LogoutDependencies["rpc"];
+    const response = await logoutHandler(request("POST"), deps);
+    assertEquals(response.status, 503);
+    assertEquals(await json(response), {
+      error: "Revocation unresolved",
+      requestId: "request-1",
+    });
+  }
 });
 
 for (
@@ -689,7 +734,7 @@ Deno.test("login: code limiter accepts the production boundary of 5 and rejects 
   }
 });
 
-Deno.test("login: spoofing IP cannot bypass the durable per-code budget", async () => {
+Deno.test("login: spoofed forwarding headers cannot change the auxiliary identity", async () => {
   const deps = loginDeps();
   let codeAttempts = 0;
   let expectedCodeHash: unknown;
@@ -722,7 +767,7 @@ Deno.test("login: spoofing IP cannot bypass the durable per-code budget", async 
     );
     assertEquals(response.status, attempt <= 5 ? 200 : 401);
   }
-  assertEquals(ipHashes.size, 6);
+  assertEquals(ipHashes.size, 1);
 });
 
 Deno.test("login: auxiliary IP limiter accepts the production boundary of 10 and rejects attempt 11", async () => {

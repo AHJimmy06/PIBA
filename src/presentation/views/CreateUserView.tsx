@@ -27,6 +27,26 @@ export const CreateUserView: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
   const [createdUser, setCreatedUser] = useState<{name: string, code: string} | null>(null);
+  const pendingOperationKey = 'piba_create_user_pending_v1';
+
+  const operationFor = async (payload: object) => {
+    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+    const fingerprint = Array.from(digest, (value) => value.toString(16).padStart(2, '0')).join('');
+    try {
+      const pending = JSON.parse(sessionStorage.getItem(pendingOperationKey) ?? 'null') as unknown;
+      if (pending && typeof pending === 'object'
+        && (pending as { fingerprint?: unknown }).fingerprint === fingerprint
+        && typeof (pending as { operationId?: unknown }).operationId === 'string') {
+        return (pending as { operationId: string }).operationId;
+      }
+    } catch {
+      // Replace malformed or unavailable pending state below.
+    }
+    const operationId = crypto.randomUUID();
+    sessionStorage.setItem(pendingOperationKey, JSON.stringify({ operationId, fingerprint }));
+    return operationId;
+  };
 
   // Protección de ruta (solo líderes)
   if (!currentUser || currentUser.role !== 'LIDER_REPASO') {
@@ -47,12 +67,13 @@ export const CreateUserView: React.FC = () => {
 
     setSaving(true);
     try {
-      const newUser = await createUser.execute({
-        firstName,
-        lastName,
+      const payload = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         role,
-        defaultInstrument: instrument || undefined
-      });
+        defaultInstrument: instrument.trim() || undefined
+      };
+      const newUser = await createUser.execute(payload, await operationFor(payload));
 
       setCreatedUser({
         name: `${newUser.firstName} ${newUser.lastName}`,
@@ -63,6 +84,7 @@ export const CreateUserView: React.FC = () => {
       setFirstName('');
       setLastName('');
       setInstrument('');
+      sessionStorage.removeItem(pendingOperationKey);
     } catch (error) {
       console.error("Error creating user:", error);
       alert("Error al crear el usuario. Verifica la conexión.");
@@ -78,7 +100,10 @@ export const CreateUserView: React.FC = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => {
+              sessionStorage.removeItem(pendingOperationKey);
+              navigate('/dashboard');
+            }}
             className="text-muted-foreground hover:text-foreground rounded-2xl bg-accent h-12 w-12"
           >
             <ArrowLeft className="h-6 w-6" />

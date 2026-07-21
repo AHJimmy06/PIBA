@@ -5,7 +5,7 @@ import {
   json,
   readJsonBody,
   requestId,
-  requireProjectApiKey,
+  requireSessionProxy,
   safeError,
   type SafeLogger,
   safeLogger,
@@ -71,7 +71,7 @@ export async function profileHandler(
       return safeError(id, origin, 405);
     }
     try {
-      await requireProjectApiKey(request);
+      await requireSessionProxy(request);
     } catch {
       return safeError(id, origin, 401);
     }

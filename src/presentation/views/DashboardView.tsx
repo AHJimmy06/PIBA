@@ -43,7 +43,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 
 export const DashboardView: React.FC = () => {
   const { getPendingRehearsals, deleteRehearsal, updateUserProfile } = useDependencies();
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, revocationWarning } = useAuth();
   const navigate = useNavigate();
 
   const [rehearsals, setRehearsals] = useState<Rehearsal[]>([]);
@@ -79,9 +79,8 @@ export const DashboardView: React.FC = () => {
     fetchRehearsals();
   }, [fetchRehearsals]);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    if (await logout()) navigate('/');
   };
 
   const handleProfileSave = async (e: React.FormEvent) => {
@@ -288,7 +287,14 @@ export const DashboardView: React.FC = () => {
                 </Button>
                 </div>
                 </div>
-                </nav>
+      </nav>
+
+      {revocationWarning && (
+        <div role="alert" className="border-b border-amber-500/30 bg-amber-500/10 px-6 py-3 text-center text-sm text-amber-100">
+          No pudimos confirmar el cierre de sesión. Tu sesión sigue activa; revisá la conexión e intentá salir nuevamente.
+          {revocationWarning.requestId && <span className="ml-2 font-mono text-xs">Solicitud: {revocationWarning.requestId}</span>}
+        </div>
+      )}
 
                 <main className="container mx-auto p-6 md:p-10 space-y-12">
                 <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 text-left">

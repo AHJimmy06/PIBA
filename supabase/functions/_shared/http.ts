@@ -114,7 +114,7 @@ export const corsHeaders = (origin: string | null) => ({
     ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" }
     : {}),
   "Access-Control-Allow-Headers":
-    "authorization, apikey, content-type, idempotency-key, x-request-id, x-piba-operation-id",
+    "authorization, apikey, content-type, idempotency-key, x-request-id, x-piba-client-key, x-piba-operation-id, x-piba-proxy-secret",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   "Access-Control-Max-Age": "600",
 });
@@ -151,6 +151,15 @@ export async function requireProjectApiKey(request: Request): Promise<void> {
   const provided = request.headers.get("apikey");
   if (!expected || !provided || !(await equal(provided, expected))) {
     throw new Error("invalid project key");
+  }
+}
+
+export async function requireSessionProxy(request: Request): Promise<void> {
+  await requireProjectApiKey(request);
+  const expected = Deno.env.get("PIBA_PROXY_SECRET");
+  const provided = request.headers.get("x-piba-proxy-secret");
+  if (!expected || !provided || !(await equal(provided, expected))) {
+    throw new Error("invalid proxy secret");
   }
 }
 
@@ -202,9 +211,11 @@ export async function consumeIpAndFamilyLimits(
   familyLimit: number,
   rpc: LimitRpc,
 ): Promise<void> {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown";
-  await consumeLimit(`${endpoint}:ip`, ip, 300, ipLimit, rpc);
+  const supplied = request.headers.get("x-piba-client-key");
+  const clientKey = supplied && /^[0-9a-f]{64}$/.test(supplied)
+    ? supplied
+    : "anonymous";
+  await consumeLimit(`${endpoint}:ip`, clientKey, 300, ipLimit, rpc);
   await consumeLimit(`${endpoint}:family`, family, 300, familyLimit, rpc);
 }
 

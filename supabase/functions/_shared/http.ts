@@ -21,6 +21,7 @@ export type CompletionLog = {
     | "dependency"
     | "validation"
     | "convergence"
+    | "refresh_replay_family_revoked"
     | "exception";
 };
 export type SafeLogger = (entry: CompletionLog) => void;
@@ -41,9 +42,17 @@ export const failureClass = (
   return "exception";
 };
 
+const responseFailures = new WeakMap<
+  Response,
+  NonNullable<CompletionLog["failure_class"]>
+>();
+
 const responseFailureClass = (
-  status: number,
+  response: Response,
 ): NonNullable<CompletionLog["failure_class"]> | undefined => {
+  const specific = responseFailures.get(response);
+  if (specific) return specific;
+  const status = response.status;
   if (status < 400) return undefined;
   if (status === 401 || status === 403) return "auth";
   if (status === 429) return "rate_limit";
@@ -72,7 +81,7 @@ export async function withCompletionTelemetry(
   } catch {
     response = safeError(id, request.headers.get("origin"), 503);
   }
-  const failure = responseFailureClass(response.status);
+  const failure = responseFailureClass(response);
   try {
     dependencies.logger({
       request_id: id,
@@ -105,7 +114,7 @@ export const corsHeaders = (origin: string | null) => ({
     ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" }
     : {}),
   "Access-Control-Allow-Headers":
-    "authorization, apikey, content-type, x-request-id, x-piba-operation-id",
+    "authorization, apikey, content-type, idempotency-key, x-request-id, x-piba-operation-id",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   "Access-Control-Max-Age": "600",
 });
@@ -216,7 +225,16 @@ export const safeError = (
   id: string,
   origin: string | null = null,
   status = 400,
-) => json({ error: "Invalid request", requestId: id }, status, origin);
+  telemetryFailure?: NonNullable<CompletionLog["failure_class"]>,
+) => {
+  const response = json(
+    { error: "Invalid request", requestId: id },
+    status,
+    origin,
+  );
+  if (telemetryFailure) responseFailures.set(response, telemetryFailure);
+  return response;
+};
 
 export async function readJsonBody<T>(request: Request): Promise<T> {
   const length = Number(request.headers.get("content-length") ?? "0");

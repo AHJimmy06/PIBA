@@ -1,0 +1,84 @@
+{
+  "releaseId": "REPLACE_RELEASE_ID",
+  "createdAt": "1970-01-01T00:00:00Z",
+  "gitCommit": "REPLACE_40_CHAR_GIT_SHA",
+  "supabaseProjectRef": "REPLACE_PROJECT_REF",
+  "vercelProjectId": "REPLACE_VERCEL_PROJECT_ID",
+  "vercelOrgId": "REPLACE_VERCEL_ORG_ID",
+  "foundationMigration": "20260408020000_secure_session_foundation.sql",
+  "functionVersion": "REPLACE_FUNCTION_VERSION",
+  "functionBundles": [
+    { "name": "session-login", "location": "ops/secure-sessions/artifacts/functions/current/session-login.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+    { "name": "session-refresh", "location": "ops/secure-sessions/artifacts/functions/current/session-refresh.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+    { "name": "session-logout", "location": "ops/secure-sessions/artifacts/functions/current/session-logout.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+    { "name": "session-users", "location": "ops/secure-sessions/artifacts/functions/current/session-users.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+    { "name": "session-profile", "location": "ops/secure-sessions/artifacts/functions/current/session-profile.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+    { "name": "backfill", "location": "ops/secure-sessions/artifacts/functions/current/backfill.tar.gz", "sourceSha256": "REPLACE_SHA256" }
+  ],
+  "clientVersion": "REPLACE_CLIENT_VERSION",
+  "clientDeploymentId": "REPLACE_VERCEL_DEPLOYMENT_ID",
+  "clientAssetManifestSha256": "REPLACE_SHA256",
+  "artifacts": [
+    { "path": "supabase/migrations/20260408020000_secure_session_foundation.sql", "sha256": "REPLACE_SHA256" },
+    { "path": "supabase/functions/deno.lock", "sha256": "REPLACE_SHA256" },
+    { "path": "dist.tar.gz", "sha256": "REPLACE_SHA256" },
+    { "path": ".github/workflows/secure-sessions.yml", "sha256": "REPLACE_SHA256" },
+    { "path": "ops/secure-sessions/cutover.sql", "sha256": "REPLACE_SHA256" },
+    { "path": "ops/secure-sessions/rollback.sql", "sha256": "REPLACE_SHA256" },
+    { "path": "scripts/verify-secure-session-foundation.mjs", "sha256": "REPLACE_SHA256" }
+  ],
+  "priorFunctions": {
+    "gitSha": "REPLACE_PRIOR_40_CHAR_GIT_SHA",
+    "bundles": [
+      { "name": "session-login", "location": "ops/secure-sessions/artifacts/functions/session-login.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+      { "name": "session-refresh", "location": "ops/secure-sessions/artifacts/functions/session-refresh.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+      { "name": "session-logout", "location": "ops/secure-sessions/artifacts/functions/session-logout.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+      { "name": "session-users", "location": "ops/secure-sessions/artifacts/functions/session-users.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+      { "name": "session-profile", "location": "ops/secure-sessions/artifacts/functions/session-profile.tar.gz", "sourceSha256": "REPLACE_SHA256" },
+      { "name": "backfill", "location": "ops/secure-sessions/artifacts/functions/backfill.tar.gz", "sourceSha256": "REPLACE_SHA256" }
+    ]
+  },
+  "priorVercelDeployment": {
+    "deploymentId": "REPLACE_VERCEL_DEPLOYMENT_ID",
+    "immutableUrl": "REPLACE_IMMUTABLE_VERCEL_URL"
+  },
+  "sqlRollback": { "path": "ops/secure-sessions/rollback.sql", "sha256": "REPLACE_SHA256" },
+  "productionDetection": {
+    "enabled": true,
+    "workflow": ".github/workflows/secure-sessions.yml",
+    "schedule": "*/5 * * * *",
+    "managementApiEndpoint": "GET /v1/projects/{ref}/analytics/endpoints/logs.all",
+    "requiredSecrets": ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF"],
+    "requiredCheck": "production-detection",
+    "configurationSha256": "REPLACE_SHA256",
+    "evidence": {
+      "provider": "github", "runId": 1, "runAttempt": 1, "runUrl": "https://github.com/REPLACE_OWNER/REPLACE_REPOSITORY/actions/runs/1", "createdAt": "1970-01-01T00:00:00Z", "environment": "production",
+      "actor": "github-actions[bot]", "commit": "REPLACE_40_CHAR_GIT_SHA", "workflowSha256": "REPLACE_SHA256",
+      "configuredSecretNames": ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF"], "healthObservedAt": "1970-01-01T00:00:00Z", "completedAt": "1970-01-01T00:00:00Z",
+      "proxySyntheticResults": [
+        { "name": "invalid-login", "method": "POST", "path": "/api/session/login", "status": 401, "durationMs": 1, "checkedAt": "1970-01-01T00:00:00Z", "decision": "pass" },
+        { "name": "unauthenticated-current-user", "method": "GET", "path": "/api/session/current-user", "status": 401, "durationMs": 1, "checkedAt": "1970-01-01T00:00:00Z", "decision": "pass" }
+      ],
+      "endpointResults": [
+        { "endpoint": "login", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "decision": "pass" },
+        { "endpoint": "refresh", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "decision": "pass" },
+        { "endpoint": "logout", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "decision": "pass" },
+        { "endpoint": "current-user", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "decision": "pass" },
+        { "endpoint": "list-users", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "decision": "pass" },
+        { "endpoint": "create-user", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "decision": "pass" },
+        { "endpoint": "update-profile", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "decision": "pass" }
+      ], "status": "success"
+    }
+  },
+  "deploymentAuthorization": {
+    "provider": "github", "repository": "REPLACE_OWNER_REPOSITORY", "pullRequestNumber": 1, "runId": 1, "runAttempt": 1, "runUrl": "https://github.com/REPLACE_OWNER/REPLACE_REPOSITORY/actions/runs/1", "jobId": 1, "jobAttempt": 1, "jobUrl": "https://github.com/REPLACE_OWNER/REPLACE_REPOSITORY/actions/runs/1/job/1", "validateProductionCutover": true,
+    "workflowId": 1, "workflowPath": ".github/workflows/secure-sessions.yml", "event": "workflow_dispatch", "ref": "refs/heads/main", "createdAt": "1970-01-01T00:00:00Z", "completedAt": "1970-01-01T00:00:00Z",
+    "deploymentId": 1, "deploymentStatusId": 1, "environment": "staging", "commit": "REPLACE_40_CHAR_GIT_SHA", "status": "approved",
+    "approvals": [
+      { "role": "security", "actor": "REPLACE_GITHUB_ACTOR", "approvedAt": "1970-01-01T00:00:00Z", "reviewId": 1 },
+      { "role": "release-owner", "actor": "REPLACE_GITHUB_ACTOR", "approvedAt": "1970-01-01T00:00:00Z", "reviewId": 2 }
+    ]
+  },
+  "rollbackAt": "1970-01-01T00:00:00Z",
+  "compatibilityEndsAt": "1970-01-04T00:00:00Z"
+}

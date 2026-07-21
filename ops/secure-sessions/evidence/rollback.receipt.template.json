@@ -1,0 +1,38 @@
+{
+  "releaseId": "REPLACE_RELEASE_ID",
+  "phase": "rollback",
+  "environment": "staging",
+  "startedAt": "1970-01-01T00:00:00Z",
+  "completedAt": "1970-01-01T00:10:00Z",
+  "actor": "REPLACE_ACTOR",
+  "actorRole": "incident-commander",
+  "manifestSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "inputSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "outputSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+  "status": "rolled-back",
+  "evidence": {
+    "priorFunctionGitSha": "REPLACE_PRIOR_40_CHAR_GIT_SHA",
+    "restoredFunctionBundles": [
+      { "name": "session-login", "location": "ops/secure-sessions/artifacts/functions/session-login.tar.gz", "sourceSha256": "REPLACE_SESSION_LOGIN_SHA256" },
+      { "name": "session-refresh", "location": "ops/secure-sessions/artifacts/functions/session-refresh.tar.gz", "sourceSha256": "REPLACE_SESSION_REFRESH_SHA256" },
+      { "name": "session-logout", "location": "ops/secure-sessions/artifacts/functions/session-logout.tar.gz", "sourceSha256": "REPLACE_SESSION_LOGOUT_SHA256" },
+      { "name": "session-users", "location": "ops/secure-sessions/artifacts/functions/session-users.tar.gz", "sourceSha256": "REPLACE_SESSION_USERS_SHA256" },
+      { "name": "session-profile", "location": "ops/secure-sessions/artifacts/functions/session-profile.tar.gz", "sourceSha256": "REPLACE_SESSION_PROFILE_SHA256" },
+      { "name": "backfill", "location": "ops/secure-sessions/artifacts/functions/backfill.tar.gz", "sourceSha256": "REPLACE_BACKFILL_SHA256" }
+    ],
+    "overwrittenFunctions": ["session-login", "session-refresh", "session-logout", "session-users", "session-profile", "backfill"],
+    "priorVercelDeploymentId": "REPLACE_VERCEL_DEPLOYMENT_ID",
+    "priorVercelImmutableUrl": "REPLACE_IMMUTABLE_VERCEL_URL",
+    "vercelRollbackCommand": "npx vercel rollback REPLACE_VERCEL_DEPLOYMENT_ID",
+    "sqlRollbackPath": "ops/secure-sessions/rollback.sql",
+    "sqlRollbackSha256": "REPLACE_SHA256",
+    "cutoverExecutionReceiptPath": "ops/secure-sessions/evidence/cutover-execution.receipt.json",
+    "cutoverExecutionReceiptSha256": "REPLACE_SHA256",
+    "authorizationReceiptSha256": "REPLACE_SHA256",
+    "expectedReleaseId": "REPLACE_CUTOVER_RELEASE_ID",
+    "checkpointReceiptPath": "ops/secure-sessions/evidence/rollback-checkpoint-REPLACE_RELEASE_ID.json",
+    "checkpointReceiptSha256": "REPLACE_SHA256",
+    "familiesRevoked": true,
+    "compatibilityEndsAt": "1970-01-04T00:00:00Z"
+  }
+}

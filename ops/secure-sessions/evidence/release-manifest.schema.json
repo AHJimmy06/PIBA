@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://piba.local/schemas/secure-session-release-manifest.json",
+  "title": "Secure session release manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["releaseId", "createdAt", "gitCommit", "supabaseProjectRef", "vercelProjectId", "vercelOrgId", "foundationMigration", "functionVersion", "functionBundles", "clientVersion", "clientDeploymentId", "clientAssetManifestSha256", "artifacts", "priorFunctions", "priorVercelDeployment", "sqlRollback", "productionDetection", "deploymentAuthorization", "rollbackAt", "compatibilityEndsAt"],
+  "properties": {
+    "releaseId": { "allOf": [{ "$ref": "#/$defs/nonPlaceholder" }, { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$" }] },
+    "createdAt": { "$ref": "#/$defs/operationalDateTime" },
+    "gitCommit": { "$ref": "#/$defs/gitSha" },
+    "supabaseProjectRef": { "type": "string", "pattern": "^[a-z0-9]{8,32}$" },
+    "vercelProjectId": { "type": "string", "pattern": "^prj_[A-Za-z0-9]{8,}$" },
+    "vercelOrgId": { "type": "string", "pattern": "^team_[A-Za-z0-9]{8,}$" },
+    "foundationMigration": { "const": "20260408020000_secure_session_foundation.sql" },
+    "functionVersion": { "$ref": "#/$defs/nonPlaceholder" },
+    "functionBundles": { "$ref": "#/$defs/functionBundles" },
+    "clientVersion": { "$ref": "#/$defs/nonPlaceholder" },
+    "clientDeploymentId": { "type": "string", "pattern": "^dpl_[A-Za-z0-9]{8,}$" },
+    "clientAssetManifestSha256": { "$ref": "#/$defs/sha256" },
+    "artifacts": {
+      "type": "array", "minItems": 7, "maxItems": 7, "uniqueItems": true,
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "priorFunctions": {
+      "type": "object", "additionalProperties": false,
+      "required": ["gitSha", "bundles"],
+      "properties": {
+        "gitSha": { "$ref": "#/$defs/gitSha" },
+        "bundles": {
+          "type": "array", "minItems": 6, "maxItems": 6,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "location", "sourceSha256"],
+            "properties": {
+              "name": { "enum": ["session-login", "session-refresh", "session-logout", "session-users", "session-profile", "backfill"] },
+              "location": { "type": "string", "pattern": "^ops/secure-sessions/artifacts/functions/[A-Za-z0-9._/-]+\\.tar\\.gz$" },
+              "sourceSha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    },
+    "priorVercelDeployment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["deploymentId", "immutableUrl"],
+      "properties": {
+        "deploymentId": { "type": "string", "pattern": "^dpl_[A-Za-z0-9]{8,}$" },
+        "immutableUrl": { "type": "string", "pattern": "^https://[A-Za-z0-9-]+-[A-Za-z0-9-]+\\.vercel\\.app$" }
+      }
+    },
+    "sqlRollback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "const": "ops/secure-sessions/rollback.sql" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "productionDetection": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "workflow", "schedule", "managementApiEndpoint", "requiredSecrets", "requiredCheck", "configurationSha256", "evidence"],
+      "properties": {
+        "enabled": { "const": true },
+        "workflow": { "const": ".github/workflows/secure-sessions.yml" },
+        "schedule": { "const": "*/5 * * * *" },
+        "managementApiEndpoint": { "const": "GET /v1/projects/{ref}/analytics/endpoints/logs.all" },
+        "requiredSecrets": { "const": ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF"] },
+        "requiredCheck": { "const": "production-detection" },
+        "configurationSha256": { "$ref": "#/$defs/sha256" },
+        "evidence": { "$ref": "#/$defs/productionDetectionEvidence" }
+      }
+    },
+    "deploymentAuthorization": { "$ref": "#/$defs/deploymentAuthorization" },
+    "rollbackAt": { "$ref": "#/$defs/operationalDateTime" },
+    "compatibilityEndsAt": { "$ref": "#/$defs/operationalDateTime" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^(?!([0-9a-f])\\1{63}$)[0-9a-f]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^(?!([0-9a-f])\\1{39}$)[0-9a-f]{40}$" },
+    "nonPlaceholder": { "type": "string", "minLength": 3, "pattern": "^(?!(?:REPLACE(?:_|$)|TBD(?:_|$)|TODO(?:_|$)|CHANGEME(?:_|$)|YOUR[_-]|EXAMPLE(?:_|$)|<[^>]+>$)).+" },
+    "operationalDateTime": { "type": "string", "format": "date-time", "pattern": "^(?!1970-01-01T)" },
+    "deploymentAuthorization": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "repository", "pullRequestNumber", "runId", "runAttempt", "runUrl", "jobId", "jobAttempt", "jobUrl", "validateProductionCutover", "workflowId", "workflowPath", "event", "ref", "createdAt", "completedAt", "deploymentId", "deploymentStatusId", "environment", "commit", "status", "approvals"],
+      "properties": {
+        "provider": { "const": "github" }, "repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" }, "pullRequestNumber": { "type": "integer", "minimum": 1 },
+        "runId": { "type": "integer", "minimum": 1 }, "runAttempt": { "type": "integer", "minimum": 1 }, "runUrl": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/.+/actions/runs/[0-9]+$" },
+        "jobId": { "type": "integer", "minimum": 1 }, "jobAttempt": { "type": "integer", "minimum": 1 }, "jobUrl": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/.+/actions/runs/[0-9]+/job/[0-9]+$" }, "validateProductionCutover": { "const": true },
+        "workflowId": { "type": "integer", "minimum": 1 }, "workflowPath": { "const": ".github/workflows/secure-sessions.yml" }, "event": { "const": "workflow_dispatch" }, "ref": { "const": "refs/heads/main" },
+        "createdAt": { "$ref": "#/$defs/operationalDateTime" }, "completedAt": { "$ref": "#/$defs/operationalDateTime" },
+        "deploymentId": { "type": "integer", "minimum": 1 }, "deploymentStatusId": { "type": "integer", "minimum": 1 }, "environment": { "enum": ["staging", "production"] },
+        "commit": { "$ref": "#/$defs/gitSha" }, "status": { "const": "approved" },
+        "approvals": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/providerApproval" } }
+      }
+    },
+    "providerApproval": {
+      "type": "object", "additionalProperties": false, "required": ["role", "actor", "approvedAt", "reviewId"],
+      "properties": { "role": { "enum": ["security", "release-owner"] }, "actor": { "$ref": "#/$defs/nonPlaceholder" }, "approvedAt": { "$ref": "#/$defs/operationalDateTime" }, "reviewId": { "type": "integer", "minimum": 1 } }
+    },
+    "productionDetectionEvidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "runId", "runAttempt", "runUrl", "createdAt", "environment", "actor", "commit", "workflowSha256", "configuredSecretNames", "healthObservedAt", "completedAt", "proxySyntheticResults", "endpointResults", "status"],
+      "properties": {
+        "provider": { "const": "github" }, "runId": { "type": "integer", "minimum": 1 }, "runAttempt": { "type": "integer", "minimum": 1 },
+        "runUrl": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/.+/actions/runs/[0-9]+$" }, "createdAt": { "$ref": "#/$defs/operationalDateTime" }, "environment": { "const": "production" },
+        "actor": { "$ref": "#/$defs/nonPlaceholder" }, "commit": { "$ref": "#/$defs/gitSha" }, "workflowSha256": { "$ref": "#/$defs/sha256" },
+        "configuredSecretNames": { "const": ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF"] }, "healthObservedAt": { "$ref": "#/$defs/operationalDateTime" },
+        "completedAt": { "$ref": "#/$defs/operationalDateTime" },
+        "proxySyntheticResults": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "method", "path", "status", "durationMs", "checkedAt", "decision"],
+            "properties": {
+              "name": { "enum": ["invalid-login", "unauthenticated-current-user"] }, "method": { "enum": ["GET", "POST"] },
+              "path": { "enum": ["/api/session/login", "/api/session/current-user"] }, "status": { "type": "integer", "enum": [400, 401, 403, 429] },
+              "durationMs": { "type": "number", "minimum": 0, "exclusiveMaximum": 750 }, "checkedAt": { "$ref": "#/$defs/operationalDateTime" }, "decision": { "const": "pass" }
+            }
+          },
+          "allOf": [
+            { "contains": { "properties": { "name": { "const": "invalid-login" }, "method": { "const": "POST" }, "path": { "const": "/api/session/login" } }, "required": ["name", "method", "path"] }, "minContains": 1, "maxContains": 1 },
+            { "contains": { "properties": { "name": { "const": "unauthenticated-current-user" }, "method": { "const": "GET" }, "path": { "const": "/api/session/current-user" } }, "required": ["name", "method", "path"] }, "minContains": 1, "maxContains": 1 }
+          ]
+        },
+        "endpointResults": { "$ref": "#/$defs/endpointResults" }, "status": { "const": "success" }
+      }
+    },
+    "endpointResults": {
+      "type": "array", "minItems": 7, "maxItems": 7,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["endpoint", "sampleCount", "unexpectedErrorRate", "nonSuccessRate", "authThrottleRate", "p95Ms", "decision"],
+        "properties": {
+          "endpoint": { "enum": ["login", "refresh", "logout", "current-user", "list-users", "create-user", "update-profile"] },
+          "sampleCount": { "type": "integer", "minimum": 30 }, "unexpectedErrorRate": { "type": "number", "minimum": 0, "maximum": 1 },
+          "nonSuccessRate": { "type": "number", "minimum": 0, "maximum": 1 }, "authThrottleRate": { "type": "number", "minimum": 0, "maximum": 1 },
+          "p95Ms": { "type": "number", "minimum": 0 },
+          "decision": { "enum": ["pass", "investigation", "emergency", "rollback"] }
+        }
+      },
+      "allOf": [
+        { "contains": { "properties": { "endpoint": { "const": "login" } }, "required": ["endpoint"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "endpoint": { "const": "refresh" } }, "required": ["endpoint"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "endpoint": { "const": "logout" } }, "required": ["endpoint"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "endpoint": { "const": "current-user" } }, "required": ["endpoint"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "endpoint": { "const": "list-users" } }, "required": ["endpoint"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "endpoint": { "const": "create-user" } }, "required": ["endpoint"] }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "properties": { "endpoint": { "const": "update-profile" } }, "required": ["endpoint"] }, "minContains": 1, "maxContains": 1 }
+      ]
+    },
+    "functionBundles": {
+      "type": "array", "minItems": 6, "maxItems": 6,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["name", "location", "sourceSha256"],
+        "properties": {
+          "name": { "enum": ["session-login", "session-refresh", "session-logout", "session-users", "session-profile", "backfill"] },
+          "location": { "type": "string", "pattern": "^ops/secure-sessions/artifacts/functions/[A-Za-z0-9._/-]+\\.tar\\.gz$" },
+          "sourceSha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "sha256"],
+      "properties": { "path": { "type": "string", "minLength": 1 }, "sha256": { "$ref": "#/$defs/sha256" } }
+    }
+  }
+}

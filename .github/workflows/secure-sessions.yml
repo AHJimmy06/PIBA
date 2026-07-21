@@ -1,0 +1,115 @@
+name: Secure sessions
+on:
+  pull_request:
+  push:
+    branches: [main, feat/**]
+  workflow_dispatch:
+    inputs:
+      validate_production_cutover:
+        description: Validate provider-authenticated production cutover evidence
+        required: false
+        default: false
+        type: boolean
+      release_manifest:
+        description: Repository-relative release manifest path
+        required: false
+        default: ops/secure-sessions/evidence/release-manifest.json
+        type: string
+  schedule:
+    - cron: '*/5 * * * *'
+jobs:
+  security-gate:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 22, cache: npm }
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with: { deno-version: v2.1.4 }
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1
+        with: { version: 2.109.1 }
+      - run: npm ci
+      - name: Verify toolchain
+        run: |
+          deno --version
+          supabase --version
+          docker version
+      - run: npm run security:gate
+        env:
+          PIBA_SESSION_HARNESS_IMAGE: public.ecr.aws/supabase/postgres:17.6.1.143@sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453
+
+  validate-production-cutover:
+    if: github.event_name == 'workflow_dispatch' && inputs.validate_production_cutover
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      actions: read
+      contents: read
+      deployments: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Verify provider-authenticated production evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_MANIFEST: ${{ inputs.release_manifest }}
+        run: >-
+          npm run validate:secure-session-cutover -- "$RELEASE_MANIFEST"
+          --environment production
+          --git-commit "$GITHUB_SHA"
+          --repository "$GITHUB_REPOSITORY"
+
+  production-detection:
+    if: >-
+      (github.event_name == 'schedule' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: secure-session-production-detection
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Guard trusted production ref
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GIT_REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$GIT_REF" = "refs/heads/$DEFAULT_BRANCH"
+          test "$DEFAULT_BRANCH" = main
+          test "$EVENT_NAME" = schedule -o "$EVENT_NAME" = workflow_dispatch
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Run secure-session production detector
+        id: detection
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          GH_TOKEN: ${{ github.token }}
+          INCIDENT_OWNER: ${{ vars.SECURE_SESSION_INCIDENT_OWNER }}
+          INCIDENT_LABELS: ${{ vars.SECURE_SESSION_INCIDENT_LABELS }}
+          PRODUCTION_ORIGIN: ${{ vars.SECURE_SESSION_PRODUCTION_ORIGIN }}
+        run: npm run detect:secure-session-production
+      - name: Emit successful production detection receipt
+        if: steps.detection.outcome == 'success'
+        run: |
+          set -euo pipefail
+          {
+            printf '### Production detection receipt\n```json\n'
+            cat "$RUNNER_TEMP/production-detection.receipt.json"
+            printf '\n```\n'
+          } >>"$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,58 @@
+{
+  "releaseId": "REPLACE_RELEASE_ID",
+  "phase": "cutover",
+  "environment": "staging",
+  "startedAt": "1970-01-01T00:00:00Z",
+  "completedAt": "1970-01-01T00:30:00Z",
+  "actor": "REPLACE_ACTOR",
+  "actorRole": "release-owner",
+  "manifestSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "inputSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "outputSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+  "status": "approved",
+  "evidence": {
+    "verifiedCredentials": 7,
+    "expectedCredentials": 7,
+    "targetMigrationState": "hash_only",
+    "functionVersionEvidence": {
+      "version": "REPLACE_FUNCTION_VERSION",
+      "receiptPath": "ops/secure-sessions/evidence/function-deploy.receipt.json",
+      "receiptSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "deploymentOutputSha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "clientVersionEvidence": {
+      "version": "REPLACE_CLIENT_VERSION",
+      "receiptPath": "ops/secure-sessions/evidence/client-deploy.receipt.json",
+      "receiptSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "providerDeploymentId": "REPLACE_PROVIDER_DEPLOYMENT_ID",
+      "assetManifestSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    "observationOwner": "REPLACE_RELEASE_OWNER",
+    "observationOperator": "REPLACE_FUNCTION_OPERATOR",
+    "observationStartedAt": "1970-01-01T00:00:00Z",
+    "observationEndedAt": "1970-01-01T00:30:00Z",
+    "observationQueryIds": ["REPLACE_LOGIN_QUERY_ID", "REPLACE_REFRESH_QUERY_ID", "REPLACE_LOGOUT_QUERY_ID", "REPLACE_CURRENT_USER_QUERY_ID", "REPLACE_LIST_USERS_QUERY_ID", "REPLACE_CREATE_USER_QUERY_ID", "REPLACE_UPDATE_PROFILE_QUERY_ID"],
+    "observationOutputSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+    "observationDurationMinutes": 30,
+    "productionDetectionEvidenceSha256": null,
+    "sloResults": [
+      { "endpoint": "login", "queryId": "REPLACE_LOGIN_QUERY_ID", "owner": "REPLACE_FUNCTION_OPERATOR", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "thresholdUnexpectedErrorRateMaxExclusive": 0.01, "thresholdNonSuccessRateMaxExclusive": 0.02, "thresholdAuthThrottleRateMaxExclusive": 0.05, "thresholdP95MsMaxExclusive": 750, "decision": "pass" },
+      { "endpoint": "refresh", "queryId": "REPLACE_REFRESH_QUERY_ID", "owner": "REPLACE_FUNCTION_OPERATOR", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "thresholdUnexpectedErrorRateMaxExclusive": 0.01, "thresholdNonSuccessRateMaxExclusive": 0.02, "thresholdAuthThrottleRateMaxExclusive": 0.05, "thresholdP95MsMaxExclusive": 750, "decision": "pass" },
+      { "endpoint": "logout", "queryId": "REPLACE_LOGOUT_QUERY_ID", "owner": "REPLACE_FUNCTION_OPERATOR", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "thresholdUnexpectedErrorRateMaxExclusive": 0.01, "thresholdNonSuccessRateMaxExclusive": 0.02, "thresholdAuthThrottleRateMaxExclusive": 0.05, "thresholdP95MsMaxExclusive": 750, "decision": "pass" },
+      { "endpoint": "current-user", "queryId": "REPLACE_CURRENT_USER_QUERY_ID", "owner": "REPLACE_FUNCTION_OPERATOR", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "thresholdUnexpectedErrorRateMaxExclusive": 0.01, "thresholdNonSuccessRateMaxExclusive": 0.02, "thresholdAuthThrottleRateMaxExclusive": 0.05, "thresholdP95MsMaxExclusive": 750, "decision": "pass" },
+      { "endpoint": "list-users", "queryId": "REPLACE_LIST_USERS_QUERY_ID", "owner": "REPLACE_FUNCTION_OPERATOR", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "thresholdUnexpectedErrorRateMaxExclusive": 0.01, "thresholdNonSuccessRateMaxExclusive": 0.02, "thresholdAuthThrottleRateMaxExclusive": 0.05, "thresholdP95MsMaxExclusive": 750, "decision": "pass" },
+      { "endpoint": "create-user", "queryId": "REPLACE_CREATE_USER_QUERY_ID", "owner": "REPLACE_FUNCTION_OPERATOR", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "thresholdUnexpectedErrorRateMaxExclusive": 0.01, "thresholdNonSuccessRateMaxExclusive": 0.02, "thresholdAuthThrottleRateMaxExclusive": 0.05, "thresholdP95MsMaxExclusive": 750, "decision": "pass" },
+      { "endpoint": "update-profile", "queryId": "REPLACE_UPDATE_PROFILE_QUERY_ID", "owner": "REPLACE_FUNCTION_OPERATOR", "sampleCount": 30, "unexpectedErrorRate": 0, "nonSuccessRate": 0, "authThrottleRate": 0, "p95Ms": 1, "thresholdUnexpectedErrorRateMaxExclusive": 0.01, "thresholdNonSuccessRateMaxExclusive": 0.02, "thresholdAuthThrottleRateMaxExclusive": 0.05, "thresholdP95MsMaxExclusive": 750, "decision": "pass" }
+    ],
+    "automaticRollbackTriggered": false,
+    "manualRollbackDecision": "not-required",
+    "incidentReceiptId": null,
+    "incidentReceiptPath": null,
+    "incidentReceiptSha256": null,
+    "decision": "proceed",
+    "approvals": [
+      { "role": "release-owner", "actor": "REPLACE_RELEASE_OWNER", "approvedAt": "1970-01-01T00:30:00Z" },
+      { "role": "function-operator", "actor": "REPLACE_FUNCTION_OPERATOR", "approvedAt": "1970-01-01T00:30:00Z" }
+    ]
+  }
+}

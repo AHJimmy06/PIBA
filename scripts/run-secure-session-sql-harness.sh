@@ -4,6 +4,7 @@ set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
 name="piba-session-harness-$RANDOM-$RANDOM"
 image="${PIBA_SESSION_HARNESS_IMAGE:-public.ecr.aws/supabase/postgres:17.6.1.143}"
+if command -v deno >/dev/null 2>&1; then deno_cmd=(deno); else deno_cmd=(npx --yes deno); fi
 cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
@@ -55,12 +56,14 @@ fail_with 'REMOTE_MIGRATION_INVENTORY_UNEXPECTED: count=2' < "$root/ops/secure-s
 sql -c "begin; delete from supabase_migrations.schema_migrations where version='20260408015000'; commit"
 [[ "$(sql -Atqc "select string_agg(version || ':' || name, ',' order by version,name) from supabase_migrations.schema_migrations")" == '20260408014035:fix_rehearsal_song_chords_fk' ]]
 sql < "$root/supabase/migrations/20260408020000_secure_session_foundation.sql"
+sql < "$root/supabase/migrations/20260721044311_recover_partial_backfill_credentials.sql"
+sql < "$root/supabase/migrations/20260721055246_session_pr3_atomic_operations.sql"
 sql <<'SQL'
 insert into public.users(first_name,last_name,role,access_code) select 'Test','User-'||n,case when n=1 then 'LIDER_REPASO' else 'GENERAL' end,'code-'||n from generate_series(1,7)n;
 insert into app_private.user_credentials(actor_id) select id from public.users on conflict do nothing;
 update app_private.user_credentials c set access_code_lookup_hash=extensions.digest(c.actor_id::text,'sha256'),access_code_hash='$argon2id$v=19$m=65536,t=3,p=1$fixture$fixture-hash-value-32-bytes',code_rotation_required=false;
 do $t$ declare a uuid; j1 bytea:=extensions.digest('jti-1','sha256'); j2 bytea:=extensions.digest('jti-2','sha256'); j3 bytea:=extensions.digest('jti-3','sha256'); f uuid; begin
- select id into a from public.users order by id limit 1;
+ select id into a from public.users where role='LIDER_REPASO' limit 1;
  if (select status from app_private.begin_login((select access_code_lookup_hash from app_private.user_credentials where actor_id=a),extensions.digest('ip','sha256'),extensions.digest('code','sha256')) limit 1) <> 'candidate' then raise exception 'LOGIN_CANDIDATE_FAILED'; end if;
  if (select status from app_private.finalize_login(a,1,(select access_code_lookup_hash from app_private.user_credentials where actor_id=a),'$argon2id$v=19$m=65536,t=3,p=1$fixture$fixture-hash-value-32-bytes',null,'00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002',j1,clock_timestamp()+interval '1 hour') limit 1) <> 'issued' then raise exception 'ISSUE_FAILED'; end if;
  if not exists(select 1 from app_private.validate_session(j1)) then raise exception 'VALIDATE_FAILED'; end if;
@@ -70,6 +73,19 @@ do $t$ declare a uuid; j1 bytea:=extensions.digest('jti-1','sha256'); j2 bytea:=
  if not exists(select 1 from app_private.session_families where revoked_at is not null) then raise exception 'REPLAY_NOT_REVOKED'; end if;
  end $t$;
 SQL
+
+# A committed demotion wins the row lock before create authorization resumes.
+# The denied operation must leave no user, credential, or idempotency row.
+docker exec -e PGOPTIONS='-c statement_timeout=15s' "$name" psql -U supabase_admin -d piba_session_harness -X -v ON_ERROR_STOP=1 -c \
+  "begin; select id from public.users where role='LIDER_REPASO' for update; update public.users set role='GENERAL' where role='LIDER_REPASO'; select pg_sleep(2); commit" >/dev/null & demotion_pid=$!
+sleep 1
+demotion_status="$(sql -Atqc "select status from public.session_create_user_authorized((select actor_id from app_private.app_sessions where id='00000000-0000-4000-8000-000000000001'),'00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000130','00000000-0000-4000-8000-000000000131','Race','Denied','GENERAL',null,extensions.digest('race-create','sha256'),'\$argon2id\$v=19\$m=65536,t=3,p=1\$fixture\$fixture-hash-value-32-bytes')")"
+wait "$demotion_pid"
+[[ "$demotion_status" == 'forbidden' ]]
+[[ "$(sql -Atqc "select count(*) from public.users where id='00000000-0000-4000-8000-000000000131'")" == '0' ]]
+[[ "$(sql -Atqc "select count(*) from app_private.user_credentials where actor_id='00000000-0000-4000-8000-000000000131'")" == '0' ]]
+[[ "$(sql -Atqc "select count(*) from app_private.user_creation_operations where operation_id='00000000-0000-4000-8000-000000000130'")" == '0' ]]
+sql -c "update public.users set role='LIDER_REPASO' where id=(select actor_id from app_private.app_sessions where id='00000000-0000-4000-8000-000000000001')"
 
 # Two independent connections race the same refresh token. One rotation may win,
 # but replay detection must revoke the family so no successor remains valid.
@@ -89,6 +105,7 @@ rm -f "$race_one" "$race_two"
 [[ "$(sql -Atqc "select count(*) from app_private.validate_session(extensions.digest('race-new-1','sha256'))")" == '0' ]]
 [[ "$(sql -Atqc "select count(*) from app_private.validate_session(extensions.digest('race-new-2','sha256'))")" == '0' ]]
 sql < "$root/supabase/tests/secure_sessions.sql"
+PIBA_SESSION_DB_CONTAINER="$name" "${deno_cmd[@]}" test -A "$root/supabase/functions/refresh-db.integration.test.ts"
 fail -c "select * from app_private.begin_login(null,null,null)"
 fail -c "select * from app_private.finalize_login(null,null,null,null,null,null,null,null,null)"
 fail -c "select * from app_private.rotate_session(null,null,null,null,null,null)"
@@ -130,5 +147,5 @@ sql < "$root/ops/secure-sessions/foundation-removal.sql"
 [[ "$(sql -Atqc "select to_regnamespace('app_private') is null")" == 't' ]]
 [[ "$(sql -Atqc "select to_regclass('public.security_settings') is null")" == 't' ]]
 [[ "$(sql -Atqc "select not relrowsecurity from pg_class where oid='public.users'::regclass")" == 't' ]]
-[[ "$(sql -Atqc "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('list_safe_users','session_begin_login','session_finalize_login','session_validate','session_rotate','session_revoke','consume_endpoint_limit','session_create_user','session_initialize_credential','session_set_credential','session_backfill_list','session_backfill_read','session_backfill_cas')")" == '0' ]]
+[[ "$(sql -Atqc "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('list_safe_users','session_begin_login','session_finalize_login','session_validate','session_rotate','session_revoke','consume_endpoint_limit','session_create_user','session_create_user_authorized','session_refresh_status','session_initialize_credential','session_set_credential','session_backfill_list','session_backfill_read','session_backfill_cas')")" == '0' ]]
 printf 'secure session disposable SQL harness: PASS\n'

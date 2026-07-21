@@ -13,11 +13,15 @@ export class CreateUserUseCase {
     lastName: string;
     role: Role;
     defaultInstrument?: string;
-  }): Promise<User> {
+  }, operationId: string): Promise<User> {
     if (!userData.firstName.trim() || !userData.lastName.trim()) {
       throw new Error("El nombre y el apellido son obligatorios.");
     }
 
-    return await this.userRepository.create(userData);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationId)) {
+      throw new Error("Invalid create-user operation ID.");
+    }
+
+    return await this.userRepository.create(userData, operationId);
   }
 }

@@ -5,7 +5,7 @@ import {
   failureClass,
   json,
   requestId,
-  requireProjectApiKey,
+  requireSessionProxy,
   safeError,
   type SafeLogger,
   safeLogger,
@@ -38,7 +38,7 @@ export async function logoutHandler(
   return withCompletionTelemetry(request, "logout", deps, async (id) => {
     if (request.method !== "POST") return safeError(id, origin, 405);
     try {
-      await requireProjectApiKey(request);
+      await requireSessionProxy(request);
     } catch {
       return safeError(id, origin, 401);
     }
@@ -52,10 +52,11 @@ export async function logoutHandler(
         10,
         deps.rpc,
       );
-      await deps.rpc("session_revoke", {
+      const revoked = await deps.rpc<boolean>("session_revoke", {
         p_jti_hash: bytea(await deps.hash(claims.jti)),
         p_reason: "logout",
       });
+      if (!revoked) throw new Error("revocation operation failed");
       return json({ ok: true, requestId: id }, 200, origin);
     } catch (error) {
       const kind = failureClass(error);

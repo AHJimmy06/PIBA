@@ -6,7 +6,7 @@ import {
   json,
   readJsonBody,
   requestId,
-  requireProjectApiKey,
+  requireSessionProxy,
   safeError,
   type SafeLogger,
   safeLogger,
@@ -66,7 +66,7 @@ export async function loginHandler(
   return withCompletionTelemetry(request, "login", deps, async (id) => {
     if (request.method !== "POST") return safeError(id, origin, 405);
     try {
-      await requireProjectApiKey(request);
+      await requireSessionProxy(request);
     } catch {
       return safeError(id, origin, 401);
     }
@@ -83,12 +83,14 @@ export async function loginHandler(
         accessCode.length > 128
       ) throw new Error("invalid");
       await deps.signing();
-      const ip =
-        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-          "unknown";
+      const suppliedClientKey = request.headers.get("x-piba-client-key");
+      const clientKey =
+        suppliedClientKey && /^[0-9a-f]{64}$/.test(suppliedClientKey)
+          ? suppliedClientKey
+          : "anonymous";
       const [lookup, ipHash, codeHash] = await Promise.all([
         deps.hmac(`lookup:${accessCode}`),
-        deps.hmac(`ip:${ip}`),
+        deps.hmac(`ip:${clientKey}`),
         deps.hmac(`code:${accessCode}`),
       ]);
       const candidateRows = await deps.rpc<Candidate[]>("session_begin_login", {

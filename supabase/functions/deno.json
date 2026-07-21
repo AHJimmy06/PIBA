@@ -1,0 +1,12 @@
+{
+  "nodeModulesDir": "auto",
+  "imports": {
+    "jose": "npm:jose@6.2.3",
+    "hash-wasm": "npm:hash-wasm@4.12.0",
+    "supabase-js": "npm:@supabase/supabase-js@2.98.0"
+  },
+  "tasks": {
+    "test:pr2": "deno test -A endpoint-matrix.test.ts backfill/index.test.ts",
+    "test:pr2:sql": "PIBA_PR2_SQL_HARNESS=1 deno test -A --filter 'recovery migration repairs partial credentials with CAS' backfill/index.test.ts"
+  }
+}

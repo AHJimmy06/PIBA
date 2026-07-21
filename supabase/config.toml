@@ -1,0 +1,17 @@
+[functions.session-login]
+verify_jwt = false
+
+[functions.session-refresh]
+verify_jwt = false
+
+[functions.session-logout]
+verify_jwt = false
+
+[functions.session-users]
+verify_jwt = false
+
+[functions.session-profile]
+verify_jwt = false
+
+[functions.backfill]
+verify_jwt = false

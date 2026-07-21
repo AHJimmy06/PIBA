@@ -1,0 +1,12 @@
+{
+  "incidentReceiptId": "REPLACE_INCIDENT_RECEIPT_ID",
+  "releaseId": "REPLACE_RELEASE_ID",
+  "triggeredAt": "1970-01-01T00:00:00Z",
+  "recordedAt": "1970-01-01T00:00:00Z",
+  "actor": "REPLACE_INCIDENT_COMMANDER",
+  "severity": "rollback",
+  "trigger": "unexpected-5xx",
+  "decision": "rollback",
+  "status": "open",
+  "evidenceSha256": "REPLACE_SHA256"
+}

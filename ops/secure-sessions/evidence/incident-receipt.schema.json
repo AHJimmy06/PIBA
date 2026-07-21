@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://piba.local/schemas/secure-session-incident-receipt.json",
+  "title": "Secure session cutover incident receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["incidentReceiptId", "releaseId", "triggeredAt", "recordedAt", "actor", "severity", "trigger", "decision", "status", "evidenceSha256"],
+  "properties": {
+    "incidentReceiptId": { "$ref": "#/$defs/nonPlaceholder" },
+    "releaseId": { "$ref": "#/$defs/nonPlaceholder" },
+    "triggeredAt": { "$ref": "#/$defs/operationalDateTime" },
+    "recordedAt": { "$ref": "#/$defs/operationalDateTime" },
+    "actor": { "$ref": "#/$defs/nonPlaceholder" },
+    "severity": { "enum": ["investigation", "emergency", "rollback"] },
+    "trigger": { "enum": ["unexpected-5xx", "non-success", "auth-throttle", "latency", "synthetic-rejection", "family-revocation"] },
+    "decision": { "const": "rollback" },
+    "status": { "enum": ["open", "mitigating", "rolled-back"] },
+    "evidenceSha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^(?!([0-9a-f])\\1{63}$)[0-9a-f]{64}$" },
+    "nonPlaceholder": { "type": "string", "minLength": 3, "pattern": "^(?!(?:REPLACE(?:_|$)|TBD(?:_|$)|TODO(?:_|$)|CHANGEME(?:_|$)|YOUR[_-]|EXAMPLE(?:_|$)|<[^>]+>$)).+" },
+    "operationalDateTime": { "type": "string", "format": "date-time", "pattern": "^(?!1970-01-01T)" }
+  }
+}

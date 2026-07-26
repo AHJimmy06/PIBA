@@ -1,6 +1,7 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 interface UploadRequest {
@@ -22,15 +23,19 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("MY_SERVICE_KEY");
 
     if (!supabaseUrl || !serviceKey) {
-      throw new Error(`Missing config: URL=${!!supabaseUrl}, KEY=${!!serviceKey}`);
+      throw new Error(
+        `Missing config: URL=${!!supabaseUrl}, KEY=${!!serviceKey}`,
+      );
     }
 
-    const { name, userId, category, fileData, fileName, fileType }: UploadRequest =
-      await req.json();
+    const { name, userId, category, fileData, fileName, fileType }:
+      UploadRequest = await req.json();
 
     // Generate storage path
     const fileExt = fileName.split(".").pop() || "bin";
-    const storageFileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+    const storageFileName = `${
+      Math.random().toString(36).substring(2)
+    }-${Date.now()}.${fileExt}`;
     const filePath = `uploads/${storageFileName}`;
 
     // Decode base64 to Uint8Array
@@ -41,7 +46,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // Upload to storage
-    const storageUrl = `${supabaseUrl}/storage/v1/object/backgrounds/${filePath}`;
+    const storageUrl =
+      `${supabaseUrl}/storage/v1/object/backgrounds/${filePath}`;
     const uploadResponse = await fetch(storageUrl, {
       method: "POST",
       headers: {
@@ -53,11 +59,14 @@ Deno.serve(async (req: Request) => {
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
-      throw new Error(`Storage upload failed: ${uploadResponse.status} - ${errorText}`);
+      throw new Error(
+        `Storage upload failed: ${uploadResponse.status} - ${errorText}`,
+      );
     }
 
     // Get public URL
-    const publicUrl = `${supabaseUrl}/storage/v1/object/public/backgrounds/${filePath}`;
+    const publicUrl =
+      `${supabaseUrl}/storage/v1/object/public/backgrounds/${filePath}`;
 
     // Save metadata to database via REST
     const dbResponse = await fetch(
@@ -76,12 +85,14 @@ Deno.serve(async (req: Request) => {
           created_by: userId,
           category: category || "general",
         }),
-      }
+      },
     );
 
     if (!dbResponse.ok) {
       const errorText = await dbResponse.text();
-      throw new Error(`Database insert failed: ${dbResponse.status} - ${errorText}`);
+      throw new Error(
+        `Database insert failed: ${dbResponse.status} - ${errorText}`,
+      );
     }
 
     const dbData = await dbResponse.json();
@@ -94,16 +105,15 @@ Deno.serve(async (req: Request) => {
         category: category || "general",
         publicUrl,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });

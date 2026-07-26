@@ -146,10 +146,44 @@ const equal = async (left: string, right: string) => {
 };
 
 /** Gateway routes the function; this only validates the project API key, never user identity. */
-export async function requireProjectApiKey(request: Request): Promise<void> {
-  const expected = Deno.env.get("SUPABASE_ANON_KEY");
+export async function requireProjectApiKey(
+  request: Request,
+  getEnv: (name: string) => string | undefined = (name) => Deno.env.get(name),
+): Promise<void> {
+  const expected: string[] = [];
+  const publishableKeys = getEnv("SUPABASE_PUBLISHABLE_KEYS");
+  if (publishableKeys !== undefined) {
+    try {
+      const parsed: unknown = JSON.parse(publishableKeys);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("invalid project key configuration");
+      }
+      const values = Object.values(parsed);
+      if (
+        values.length === 0 ||
+        values.some((value) =>
+          typeof value !== "string" ||
+          value !== value.trim() ||
+          value.length <= "sb_publishable_".length ||
+          !value.startsWith("sb_publishable_")
+        )
+      ) {
+        throw new Error("invalid project key configuration");
+      }
+      expected.push(...values as string[]);
+    } catch {
+      throw new Error("invalid project key");
+    }
+  }
+  const legacyAnonKey = getEnv("SUPABASE_ANON_KEY");
+  if (legacyAnonKey) expected.push(legacyAnonKey);
   const provided = request.headers.get("apikey");
-  if (!expected || !provided || !(await equal(provided, expected))) {
+  if (
+    !provided || expected.length === 0 ||
+    !(await Promise.all(expected.map((value) => equal(provided, value)))).some(
+      Boolean,
+    )
+  ) {
     throw new Error("invalid project key");
   }
 }
@@ -243,6 +277,7 @@ export const safeError = (
     status,
     origin,
   );
+  response.headers.set("x-request-id", id);
   if (telemetryFailure) responseFailures.set(response, telemetryFailure);
   return response;
 };

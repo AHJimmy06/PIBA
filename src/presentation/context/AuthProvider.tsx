@@ -15,11 +15,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [recovering, setRecovering] = useState(true);
   const [revocationWarning, setRevocationWarning] = useState<{ requestId?: string } | null>(null);
   const operation = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mounted = useRef(true);
 
   useEffect(() => {
     let active = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     let retry = 0;
+    mounted.current = true;
 
     const hydrate = async () => {
       const currentOperation = ++operation.current;
@@ -34,7 +36,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!active || operation.current !== currentOperation) return;
         if (isTransientSessionError(error)) {
           setRecovering(true);
-          timer = setTimeout(hydrate, RETRY_DELAYS[Math.min(retry++, RETRY_DELAYS.length - 1)]);
+          const retryOperation = operation.current;
+          retryTimer.current = setTimeout(() => {
+            retryTimer.current = undefined;
+            if (!active || operation.current !== retryOperation) return;
+            void hydrate();
+          }, RETRY_DELAYS[Math.min(retry++, RETRY_DELAYS.length - 1)]);
         } else {
           setUser(null);
           setRecovering(false);
@@ -43,11 +50,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
     const clearUser = () => {
       operation.current++;
+      if (retryTimer.current !== undefined) {
+        clearTimeout(retryTimer.current);
+        retryTimer.current = undefined;
+      }
       setUser(null);
       setRecovering(false);
     };
     const recover = () => {
-      if (timer) clearTimeout(timer);
+      if (retryTimer.current !== undefined) {
+        clearTimeout(retryTimer.current);
+        retryTimer.current = undefined;
+      }
       void hydrate();
     };
 
@@ -57,7 +71,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     void hydrate();
     return () => {
       active = false;
-      if (timer) clearTimeout(timer);
+      mounted.current = false;
+      if (retryTimer.current !== undefined) {
+        clearTimeout(retryTimer.current);
+        retryTimer.current = undefined;
+      }
       window.removeEventListener(SESSION_CLEARED_EVENT, clearUser);
       window.removeEventListener(SESSION_RECOVERABLE_EVENT, recover);
       window.removeEventListener('online', recover);
@@ -66,6 +84,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = (userData: User) => {
     operation.current++;
+    if (retryTimer.current !== undefined) {
+      clearTimeout(retryTimer.current);
+      retryTimer.current = undefined;
+    }
     setRevocationWarning(null);
     setRecovering(false);
     setUser(userData);
@@ -73,10 +95,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     const currentOperation = ++operation.current;
+    if (retryTimer.current !== undefined) {
+      clearTimeout(retryTimer.current);
+      retryTimer.current = undefined;
+    }
     const result = await sessionApi.logout();
-    if (operation.current !== currentOperation) return result.revoked;
+    if (!mounted.current || operation.current !== currentOperation) return result.revoked;
     if (result.revoked) {
       setRevocationWarning(null);
+      setRecovering(false);
       setUser(null);
     } else {
       setRevocationWarning({ requestId: result.requestId });

@@ -38,26 +38,60 @@ hold_foundation_locks() {
 
 sql <<'SQL'
 drop schema if exists app_private cascade; drop schema if exists extensions cascade; drop schema if exists supabase_migrations cascade;
-drop table if exists public.security_settings cascade; drop table if exists public.users cascade;
+drop table if exists public.security_settings cascade; drop table if exists public.rehearsal_song_chords cascade;
+drop table if exists public.rehearsal_songs cascade; drop table if exists public.rehearsal_users cascade;
+drop table if exists public.rehearsals cascade; drop table if exists public.background_assets cascade;
+drop table if exists public.songs cascade; drop table if exists public.users cascade;
 do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
 do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
 do $$ begin create role service_role nologin bypassrls; exception when duplicate_object then null; end $$;
 create schema extensions; create extension pgcrypto with schema extensions;
-create table public.users(id uuid primary key default extensions.gen_random_uuid(),first_name text not null,last_name text not null,role text not null,default_instrument text,access_code text not null unique);
 create schema supabase_migrations; create table supabase_migrations.schema_migrations(version text primary key,name text not null);
-insert into supabase_migrations.schema_migrations values('20260408014035','fix_rehearsal_song_chords_fk');
+create schema if not exists storage;
+create table if not exists storage.buckets(id text primary key, name text not null, public boolean not null default false);
 SQL
-sql < "$root/ops/secure-sessions/migration_drift_gate.sql"
+bootstrap_args=(-v bootstrap_environment=staging -v target_project_ref=ejxfoxbfndplinraqrvw)
+fail_with 'STAGING_BOOTSTRAP_TARGET_REJECTED' -v bootstrap_environment=staging -v target_project_ref=alternatestaging < "$root/ops/secure-sessions/staging/bootstrap.sql"
+fail_with 'STAGING_BOOTSTRAP_TARGET_REJECTED' -v bootstrap_environment=staging -v target_project_ref=kyrgdkghgyazmphvpsub < "$root/ops/secure-sessions/staging/bootstrap.sql"
+sql -c "create table public.users(id uuid primary key)"
+fail_with 'STAGING_BOOTSTRAP_REQUIRES_EMPTY_APPLICATION_SCHEMA' "${bootstrap_args[@]}" < "$root/ops/secure-sessions/staging/bootstrap.sql"
+sql -c "drop table public.users"
+sql -c "insert into supabase_migrations.schema_migrations values('20260101000000','unexpected_existing')"
+fail_with 'STAGING_BOOTSTRAP_REQUIRES_EMPTY_MIGRATION_HISTORY' "${bootstrap_args[@]}" < "$root/ops/secure-sessions/staging/bootstrap.sql"
+sql -c "delete from supabase_migrations.schema_migrations"
+sql "${bootstrap_args[@]}" < "$root/ops/secure-sessions/staging/bootstrap.sql"
+[[ "$(sql -Atq < "$root/ops/secure-sessions/staging/verify-bootstrap.sql")" == 'bootstrapped' ]]
+sql -c "create schema app_private"
+fail_with 'STAGING_BOOTSTRAP_PRIVATE_STATE_CONTRADICTORY' < "$root/ops/secure-sessions/staging/verify-bootstrap.sql"
+sql -c "drop schema app_private"
+fail -c "set role anon; select public.create_rehearsal_with_details(clock_timestamp(),'PENDING',null,array[]::uuid[],array[]::uuid[])"
+fail -c "set role authenticated; select public.update_rehearsal_with_details('00000000-0000-4000-8000-000000000001',clock_timestamp(),array[]::uuid[],array[]::uuid[])"
+sql < "$root/supabase/migrations/20260408014035_fix_rehearsal_song_chords_fk.sql"
+sql -c "insert into supabase_migrations.schema_migrations values('20260408014035','fix_rehearsal_song_chords_fk')"
+[[ "$(sql -Atq < "$root/ops/secure-sessions/staging/verify-bootstrap.sql")" == 'migrations-1' ]]
+drift_args=(-v deployment_environment=production -v target_project_ref=fixtureprod01 -v production_project_ref=fixtureprod01)
+sql "${drift_args[@]}" < "$root/ops/secure-sessions/migration_drift_gate.sql"
+fail_with 'PRODUCTION_DRIFT_GATE_TARGET_REJECTED' -v deployment_environment=staging -v target_project_ref=localstaging01 -v production_project_ref=fixtureprod01 < "$root/ops/secure-sessions/migration_drift_gate.sql"
 sql -c "begin; delete from supabase_migrations.schema_migrations; commit"
-fail_with 'REMOTE_APPROVED_BASELINE_MISSING' < "$root/ops/secure-sessions/migration_drift_gate.sql"
+fail_with 'REMOTE_APPROVED_BASELINE_MISSING' "${drift_args[@]}" < "$root/ops/secure-sessions/migration_drift_gate.sql"
 sql -c "begin; insert into supabase_migrations.schema_migrations values('20260408014035','fix_rehearsal_song_chords_fk'); commit"
+sql -c "begin; insert into supabase_migrations.schema_migrations values('20260408010000','baseline_application_schema'); commit"
+fail_with 'RETROACTIVE_STAGING_BOOTSTRAP_HISTORY_FORBIDDEN' "${drift_args[@]}" < "$root/ops/secure-sessions/migration_drift_gate.sql"
+sql -c "begin; delete from supabase_migrations.schema_migrations where version='20260408010000'; commit"
 sql -c "begin; insert into supabase_migrations.schema_migrations values('20260408015000','unexpected_migration'); commit"
-fail_with 'REMOTE_MIGRATION_INVENTORY_UNEXPECTED: count=2' < "$root/ops/secure-sessions/migration_drift_gate.sql"
+fail_with 'REMOTE_MIGRATION_INVENTORY_UNEXPECTED: count=2' "${drift_args[@]}" < "$root/ops/secure-sessions/migration_drift_gate.sql"
+fail_with 'STAGING_BOOTSTRAP_MIGRATION_STATE_CONTRADICTORY' < "$root/ops/secure-sessions/staging/verify-bootstrap.sql"
 sql -c "begin; delete from supabase_migrations.schema_migrations where version='20260408015000'; commit"
 [[ "$(sql -Atqc "select string_agg(version || ':' || name, ',' order by version,name) from supabase_migrations.schema_migrations")" == '20260408014035:fix_rehearsal_song_chords_fk' ]]
 sql < "$root/supabase/migrations/20260408020000_secure_session_foundation.sql"
+sql -c "insert into supabase_migrations.schema_migrations values('20260408020000','secure_session_foundation')"
+[[ "$(sql -Atq < "$root/ops/secure-sessions/staging/verify-bootstrap.sql")" == 'migrations-2' ]]
 sql < "$root/supabase/migrations/20260721044311_recover_partial_backfill_credentials.sql"
+sql -c "insert into supabase_migrations.schema_migrations values('20260721044311','recover_partial_backfill_credentials')"
+[[ "$(sql -Atq < "$root/ops/secure-sessions/staging/verify-bootstrap.sql")" == 'migrations-3' ]]
 sql < "$root/supabase/migrations/20260721055246_session_pr3_atomic_operations.sql"
+sql -c "insert into supabase_migrations.schema_migrations values('20260721055246','session_pr3_atomic_operations')"
+[[ "$(sql -Atq < "$root/ops/secure-sessions/staging/verify-bootstrap.sql")" == 'complete' ]]
 sql <<'SQL'
 insert into public.users(first_name,last_name,role,access_code) select 'Test','User-'||n,case when n=1 then 'LIDER_REPASO' else 'GENERAL' end,'code-'||n from generate_series(1,7)n;
 insert into app_private.user_credentials(actor_id) select id from public.users on conflict do nothing;
@@ -105,7 +139,10 @@ rm -f "$race_one" "$race_two"
 [[ "$(sql -Atqc "select count(*) from app_private.validate_session(extensions.digest('race-new-1','sha256'))")" == '0' ]]
 [[ "$(sql -Atqc "select count(*) from app_private.validate_session(extensions.digest('race-new-2','sha256'))")" == '0' ]]
 sql < "$root/supabase/tests/secure_sessions.sql"
-PIBA_SESSION_DB_CONTAINER="$name" "${deno_cmd[@]}" test -A "$root/supabase/functions/refresh-db.integration.test.ts"
+PIBA_SESSION_DB_CONTAINER="$name" "${deno_cmd[@]}" test \
+  --config "$root/supabase/functions/deno.json" \
+  --lock "$root/supabase/functions/deno.lock" \
+  -A "$root/supabase/functions/refresh-db.integration.test.ts"
 fail -c "select * from app_private.begin_login(null,null,null)"
 fail -c "select * from app_private.finalize_login(null,null,null,null,null,null,null,null,null)"
 fail -c "select * from app_private.rotate_session(null,null,null,null,null,null)"

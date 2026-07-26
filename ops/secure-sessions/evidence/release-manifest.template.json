@@ -6,6 +6,17 @@
   "vercelProjectId": "REPLACE_VERCEL_PROJECT_ID",
   "vercelOrgId": "REPLACE_VERCEL_ORG_ID",
   "foundationMigration": "20260408020000_secure_session_foundation.sql",
+  "stagingBootstrap": {
+    "classification": "non-production-session-staging-input",
+    "allowedEnvironment": "staging",
+    "approvedProjectRef": "ejxfoxbfndplinraqrvw",
+    "productionEligible": false,
+    "rollbackMutation": false,
+    "path": "ops/secure-sessions/staging/bootstrap.sql",
+    "sha256": "REPLACE_SHA256",
+    "verificationPath": "ops/secure-sessions/staging/verify-bootstrap.sql",
+    "verificationSha256": "REPLACE_SHA256"
+  },
   "functionVersion": "REPLACE_FUNCTION_VERSION",
   "functionBundles": [
     { "name": "session-login", "location": "ops/secure-sessions/artifacts/functions/current/session-login.tar.gz", "sourceSha256": "REPLACE_SHA256" },
@@ -17,6 +28,7 @@
   ],
   "clientVersion": "REPLACE_CLIENT_VERSION",
   "clientDeploymentId": "REPLACE_VERCEL_DEPLOYMENT_ID",
+  "clientDeploymentUrl": "https://REPLACE_IMMUTABLE_DEPLOYMENT_HOST",
   "clientAssetManifestSha256": "REPLACE_SHA256",
   "artifacts": [
     { "path": "supabase/migrations/20260408020000_secure_session_foundation.sql", "sha256": "REPLACE_SHA256" },
@@ -53,7 +65,7 @@
     "configurationSha256": "REPLACE_SHA256",
     "evidence": {
       "provider": "github", "runId": 1, "runAttempt": 1, "runUrl": "https://github.com/REPLACE_OWNER/REPLACE_REPOSITORY/actions/runs/1", "createdAt": "1970-01-01T00:00:00Z", "environment": "production",
-      "actor": "github-actions[bot]", "commit": "REPLACE_40_CHAR_GIT_SHA", "workflowSha256": "REPLACE_SHA256",
+      "actor": "github-actions[bot]", "commit": "REPLACE_40_CHAR_GIT_SHA", "projectRef": "REPLACE_PROJECT_REF", "checkedOrigin": "https://REPLACE_IMMUTABLE_DEPLOYMENT_HOST", "workflowSha256": "REPLACE_SHA256",
       "configuredSecretNames": ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF"], "healthObservedAt": "1970-01-01T00:00:00Z", "completedAt": "1970-01-01T00:00:00Z",
       "proxySyntheticResults": [
         { "name": "invalid-login", "method": "POST", "path": "/api/session/login", "status": 401, "durationMs": 1, "checkedAt": "1970-01-01T00:00:00Z", "decision": "pass" },

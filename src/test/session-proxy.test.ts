@@ -79,6 +79,103 @@ describe('session proxy', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('accepts and logs only sanitized same-origin browser telemetry without upstream work', async () => {
+    const entries: unknown[] = [];
+    const fetcher = vi.fn();
+    const response = await run(request('telemetry', {
+      body: JSON.stringify({
+        event: 'browser_session_operation',
+        operation: 'refresh',
+        outcome: 'failure',
+        durationMs: 125,
+        failureClass: 'timeout',
+        attempts: 3,
+      }),
+      headers: { 'x-forwarded-for': '198.51.100.10' },
+    }), fetcher as typeof fetch, {}, { logger: (entry) => entries.push(entry) });
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ ok: true, requestId: 'proxy-request-1' });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(entries).toEqual([{
+      request_id: 'proxy-request-1',
+      event: 'browser_session_operation',
+      operation: 'refresh',
+      outcome: 'failure',
+      duration_ms: 125,
+      failure_class: 'timeout',
+      attempts: 3,
+    }]);
+  });
+
+  it('accepts and logs a sanitized browser success event', async () => {
+    const entries: unknown[] = [];
+    const response = await run(request('telemetry', {
+      body: JSON.stringify({
+        event: 'browser_session_operation',
+        operation: 'logout',
+        outcome: 'success',
+        durationMs: 12,
+      }),
+      headers: { 'x-forwarded-for': '198.51.100.13' },
+    }), vi.fn() as typeof fetch, {}, { logger: (entry) => entries.push(entry) });
+
+    expect(response.status).toBe(202);
+    expect(entries).toEqual([{
+      request_id: 'proxy-request-1',
+      event: 'browser_session_operation',
+      operation: 'logout',
+      outcome: 'success',
+      duration_ms: 12,
+    }]);
+    expect(JSON.stringify(entries)).not.toMatch(/token|cookie|code|user/i);
+  });
+
+  it('rejects malformed, credential-bearing, oversized, and cross-origin telemetry', async () => {
+    const entries: unknown[] = [];
+    const fetcher = vi.fn();
+    const telemetry = (body: string, headers: Record<string, string> = {}) => run(
+      request('telemetry', { body, headers: { 'x-forwarded-for': '198.51.100.11', ...headers } }),
+      fetcher as typeof fetch,
+      {},
+      { logger: (entry) => entries.push(entry) },
+    );
+    const valid = {
+      event: 'browser_session_operation',
+      operation: 'logout',
+      outcome: 'failure',
+      durationMs: 1,
+      failureClass: 'dependency',
+    };
+
+    expect((await telemetry(JSON.stringify({ ...valid, token: 'secret' }))).status).toBe(400);
+    expect((await telemetry(JSON.stringify({ ...valid, accessCode: '1234' }))).status).toBe(400);
+    expect((await telemetry('{invalid-json')).status).toBe(400);
+    expect((await telemetry(JSON.stringify(valid), { origin: 'https://attacker.example' })).status).toBe(403);
+    expect((await telemetry(JSON.stringify({ ...valid, padding: 'x'.repeat(600) }))).status).toBe(413);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(entries).toEqual([]);
+  });
+
+  it('rate-limits browser telemetry by opaque client identity', async () => {
+    const payload = JSON.stringify({
+      event: 'browser_session_operation',
+      operation: 'offline',
+      outcome: 'failure',
+      durationMs: 0,
+      failureClass: 'offline',
+    });
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 21; attempt++) {
+      statuses.push((await run(request('telemetry', {
+        body: payload,
+        headers: { 'x-forwarded-for': '198.51.100.12' },
+      }), vi.fn() as typeof fetch)).status);
+    }
+    expect(statuses.slice(0, 20)).toEqual(Array(20).fill(202));
+    expect(statuses[20]).toBe(429);
+  });
+
   it('forwards only allowlisted headers and replaces spoofed client identity with an opaque trusted key', async () => {
     const fetcher = vi.fn().mockResolvedValue(upstream({ users: [] }));
     await run(request('users', {
@@ -103,6 +200,33 @@ describe('session proxy', () => {
     expect(headers.get('x-piba-client-key')).not.toBe('attacker-controlled');
     expect(headers.has('x-forwarded-for')).toBe(false);
   });
+
+  it('prefers a configured modern publishable key and otherwise uses legacy anon', async () => {
+    const modernKey = 'sb_publishable_modern-key';
+    const keys: Array<string | null> = [];
+    const fetcher = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      keys.push(new Headers(init?.headers).get('apikey'));
+      return Promise.resolve(upstream({}));
+    });
+
+    await run(request('login'), fetcher as typeof fetch, { SUPABASE_PUBLISHABLE_KEY: modernKey });
+    await run(request('login'), fetcher as typeof fetch);
+
+    expect(keys).toEqual([modernKey, 'anon-key']);
+  });
+
+  it.each(['', 'publishable-key', ' sb_publishable_key', 'sb_publishable_'])(
+    'fails closed for malformed configured publishable key %j',
+    async (publishableKey) => {
+      const fetcher = vi.fn();
+      const response = await run(request('login'), fetcher as typeof fetch, {
+        SUPABASE_PUBLISHABLE_KEY: publishableKey,
+      });
+
+      expect(response.status).toBe(503);
+      expect(fetcher).not.toHaveBeenCalled();
+    },
+  );
 
   it('separates trusted Vercel clients and uses an observable shared fallback when identity is absent', async () => {
     const keys: Array<string | null> = [];
@@ -137,6 +261,28 @@ describe('session proxy', () => {
       expect(response.headers.get('set-cookie')).toBe('__Host-piba_session=signed-token; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800');
       expect(response.headers.get('set-cookie')).not.toContain('Domain=');
     }
+  });
+
+  it.each(['login', 'refresh'])('strips all session credentials from failed %s responses', async (action) => {
+    const response = await run(
+      request(action, {
+        headers: action === 'refresh' ? { cookie: '__Host-piba_session=old-token' } : {},
+      }),
+      vi.fn().mockResolvedValue(upstream({
+        error: 'upstream failure',
+        token: 'top-level-token',
+        access_token: 'access-token',
+        session: { token: 'session-token' },
+        nested: { refreshToken: 'refresh-token', safe: true },
+      }, 401)) as typeof fetch,
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({
+      error: 'upstream failure',
+      nested: { safe: true },
+    });
+    expect(response.headers.get('set-cookie')).toBeNull();
   });
 
   it('clears the cookie only after confirmed logout revocation', async () => {

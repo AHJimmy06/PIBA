@@ -1,7 +1,11 @@
 const COOKIE_NAME = '__Host-piba_session';
 const MAX_BODY_BYTES = 1024;
+const MAX_TELEMETRY_BODY_BYTES = 512;
 const MAX_SESSION_AGE_SECONDS = 8 * 60 * 60;
 const UPSTREAM_TIMEOUT_MS = 8_000;
+const TELEMETRY_RATE_LIMIT = 20;
+const TELEMETRY_RATE_WINDOW_MS = 60_000;
+const MAX_TELEMETRY_CLIENTS = 1_000;
 
 type ProxyFailureClass = 'auth' | 'configuration' | 'timeout' | 'transport' | 'upstream' | 'validation';
 type ProxyLog = {
@@ -14,6 +18,18 @@ type ProxyLog = {
   client_identity: 'trusted' | 'anonymous';
   failure_class?: ProxyFailureClass;
 };
+
+type BrowserTelemetryLog = {
+  request_id: string;
+  event: 'browser_session_operation';
+  operation: 'refresh' | 'offline' | 'logout';
+  outcome: 'success' | 'failure';
+  duration_ms: number;
+  failure_class?: 'auth' | 'timeout' | 'offline' | 'rate_limit' | 'dependency' | 'invalid_response';
+  attempts?: number;
+};
+
+type SessionLog = ProxyLog | BrowserTelemetryLog;
 
 type Route = {
   upstream: 'session-login' | 'session-refresh' | 'session-logout' | 'session-profile' | 'session-users';
@@ -29,6 +45,12 @@ const ROUTES: Readonly<Record<string, Route>> = {
   profile: { upstream: 'session-profile', methods: ['POST'], protected: true },
   users: { upstream: 'session-users', methods: ['GET', 'POST'], protected: true },
 };
+
+const TELEMETRY_KEYS = new Set(['event', 'operation', 'outcome', 'durationMs', 'failureClass', 'attempts']);
+const TELEMETRY_OPERATIONS = new Set(['refresh', 'offline', 'logout']);
+const TELEMETRY_OUTCOMES = new Set(['success', 'failure']);
+const TELEMETRY_FAILURE_CLASSES = new Set(['auth', 'timeout', 'offline', 'rate_limit', 'dependency', 'invalid_response']);
+const telemetryClients = new Map<string, { count: number; windowStartedAt: number }>();
 
 const responseHeaders = (protectedRoute = false) => ({
   'Cache-Control': 'no-store, max-age=0',
@@ -76,6 +98,33 @@ const sessionCookie = (token: string, expiresAt: unknown, now: number) => {
 
 const clearCookie = `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`;
 
+const projectApiKey = (env: NodeJS.ProcessEnv): string | null => {
+  const publishable = env.SUPABASE_PUBLISHABLE_KEY;
+  if (publishable !== undefined) {
+    return publishable === publishable.trim() && publishable.length > 'sb_publishable_'.length &&
+        publishable.startsWith('sb_publishable_')
+      ? publishable
+      : null;
+  }
+  return env.SUPABASE_ANON_KEY || null;
+};
+
+const stripSessionCredentials = (value: unknown): void => {
+  if (Array.isArray(value)) {
+    value.forEach(stripSessionCredentials);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  for (const [key, child] of Object.entries(value)) {
+    const normalized = key.replace(/[-_]/g, '').toLowerCase();
+    if (['token', 'accesstoken', 'refreshtoken', 'session', 'sessiontoken', 'sessioncredential'].includes(normalized)) {
+      delete (value as Record<string, unknown>)[key];
+    } else {
+      stripSessionCredentials(child);
+    }
+  }
+};
+
 const sameOrigin = (request: Request) => {
   const origin = request.headers.get('origin');
   const host = request.headers.get('host');
@@ -97,13 +146,67 @@ const actionFrom = (request: Request) => {
     : null;
 };
 
-const boundedBody = async (request: Request): Promise<ArrayBuffer | undefined> => {
+const boundedBody = async (request: Request, maxBytes = MAX_BODY_BYTES): Promise<ArrayBuffer | undefined> => {
   if (request.method === 'GET') return undefined;
   const length = Number(request.headers.get('content-length') ?? '0');
-  if (!Number.isFinite(length) || length > MAX_BODY_BYTES) throw new Error('body too large');
+  if (!Number.isFinite(length) || length > maxBytes) throw new Error('body too large');
   const body = await request.arrayBuffer();
-  if (body.byteLength > MAX_BODY_BYTES) throw new Error('body too large');
+  if (body.byteLength > maxBytes) throw new Error('body too large');
   return body.byteLength ? body : undefined;
+};
+
+const browserTelemetry = (body: ArrayBuffer | undefined): Omit<BrowserTelemetryLog, 'request_id'> | null => {
+  if (!body) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder().decode(body));
+  } catch {
+    return null;
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const event = value as Record<string, unknown>;
+  const keys = Object.keys(event);
+  if (keys.some((key) => !TELEMETRY_KEYS.has(key))
+    || event.event !== 'browser_session_operation'
+    || typeof event.operation !== 'string'
+    || !TELEMETRY_OPERATIONS.has(event.operation)
+    || typeof event.outcome !== 'string'
+    || !TELEMETRY_OUTCOMES.has(event.outcome)
+    || typeof event.durationMs !== 'number'
+    || !Number.isInteger(event.durationMs)
+    || event.durationMs < 0
+    || event.durationMs > 60_000
+    || (event.failureClass !== undefined
+      && (typeof event.failureClass !== 'string' || !TELEMETRY_FAILURE_CLASSES.has(event.failureClass)))
+    || (event.attempts !== undefined
+      && (typeof event.attempts !== 'number' || !Number.isInteger(event.attempts) || event.attempts < 1 || event.attempts > 3))) {
+    return null;
+  }
+  return {
+    event: 'browser_session_operation',
+    operation: event.operation as BrowserTelemetryLog['operation'],
+    outcome: event.outcome as BrowserTelemetryLog['outcome'],
+    duration_ms: event.durationMs,
+    ...(event.failureClass === undefined ? {} : { failure_class: event.failureClass as BrowserTelemetryLog['failure_class'] }),
+    ...(event.attempts === undefined ? {} : { attempts: event.attempts }),
+  };
+};
+
+const acceptTelemetry = (identity: string, now: number): boolean => {
+  const active = telemetryClients.get(identity);
+  if (active && now - active.windowStartedAt < TELEMETRY_RATE_WINDOW_MS) {
+    if (active.count >= TELEMETRY_RATE_LIMIT) return false;
+    active.count++;
+    return true;
+  }
+  if (!active && telemetryClients.size >= MAX_TELEMETRY_CLIENTS) {
+    for (const [key, bucket] of telemetryClients) {
+      if (now - bucket.windowStartedAt >= TELEMETRY_RATE_WINDOW_MS) telemetryClients.delete(key);
+    }
+    if (telemetryClients.size >= MAX_TELEMETRY_CLIENTS) return false;
+  }
+  telemetryClients.set(identity, { count: 1, windowStartedAt: now });
+  return true;
 };
 
 export async function sessionProxy(
@@ -113,7 +216,7 @@ export async function sessionProxy(
     env: NodeJS.ProcessEnv;
     now: () => number;
     id?: () => string;
-    logger?: (entry: ProxyLog) => void;
+    logger?: (entry: SessionLog) => void;
     upstreamTimeoutMs?: number;
   } = {
     fetch,
@@ -124,6 +227,37 @@ export async function sessionProxy(
   const requestId = dependencies.id?.() ?? crypto.randomUUID();
   const startedAt = dependencies.now();
   const action = actionFrom(request);
+
+  if (action === 'telemetry') {
+    if (request.method !== 'POST') return errorResponse(405, requestId);
+    if (!sameOrigin(request)) return errorResponse(403, requestId);
+    if (request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
+      return errorResponse(415, requestId);
+    }
+    const secret = dependencies.env.PIBA_PROXY_SECRET;
+    if (!secret) return errorResponse(503, requestId);
+    const address = request.headers.get('x-forwarded-for')?.trim();
+    const identity = await clientKey(address && address.length <= 256 ? address : 'anonymous', secret);
+    if (!acceptTelemetry(identity, startedAt)) return errorResponse(429, requestId);
+    let body: ArrayBuffer | undefined;
+    try {
+      body = await boundedBody(request, MAX_TELEMETRY_BODY_BYTES);
+    } catch {
+      return errorResponse(413, requestId);
+    }
+    const event = browserTelemetry(body);
+    if (!event) return errorResponse(400, requestId);
+    try {
+      (dependencies.logger ?? ((entry) => console.log(JSON.stringify(entry))))({ request_id: requestId, ...event });
+    } catch {
+      // Logging is best-effort and must not replace the response.
+    }
+    return Response.json({ ok: true, requestId }, {
+      status: 202,
+      headers: { ...responseHeaders(), 'x-request-id': requestId },
+    });
+  }
+
   const route = action ? ROUTES[action] : undefined;
   let identity: ProxyLog['client_identity'] = 'anonymous';
   let completed = false;
@@ -153,7 +287,7 @@ export async function sessionProxy(
   if (request.method !== 'GET' && !sameOrigin(request)) return finish(errorResponse(403, requestId, route.protected), 'auth');
 
   const supabaseUrl = dependencies.env.SUPABASE_URL;
-  const apiKey = dependencies.env.SUPABASE_PUBLISHABLE_KEY ?? dependencies.env.SUPABASE_ANON_KEY;
+  const apiKey = projectApiKey(dependencies.env);
   const proxySecret = dependencies.env.PIBA_PROXY_SECRET;
   if (!supabaseUrl || !apiKey || !proxySecret) return finish(errorResponse(503, requestId, route.protected), 'configuration');
 
@@ -228,14 +362,15 @@ export async function sessionProxy(
   const idempotencyKey = upstream.headers.get('idempotency-key');
   if (idempotencyKey) outputHeaders.set('idempotency-key', idempotencyKey);
 
-  if ((action === 'login' || action === 'refresh') && upstream.ok) {
+  if (action === 'login' || action === 'refresh') {
     const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
     const tokenValue = record.token;
+    stripSessionCredentials(payload);
+    if (!upstream.ok) return finish(Response.json(payload, { status: upstream.status, headers: outputHeaders }));
     const cookie = typeof tokenValue === 'string'
       ? sessionCookie(tokenValue, record.expiresAt, dependencies.now())
       : null;
     if (!cookie) return finish(errorResponse(502, requestId, route.protected), 'upstream');
-    delete record.token;
     outputHeaders.set('Set-Cookie', cookie);
   }
 

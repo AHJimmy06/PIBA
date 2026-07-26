@@ -13,6 +13,10 @@ type SafeUser = {
 
 const SAFE_USER_KEYS = new Set(['id', 'first_name', 'last_name', 'role', 'default_instrument']);
 const TRANSIENT_STATUSES = new Set([408, 429, 502, 503, 504]);
+const TELEMETRY_OPERATIONS = new Set(['refresh', 'offline', 'logout']);
+const TELEMETRY_OUTCOMES = new Set(['success', 'failure']);
+const TELEMETRY_FAILURE_CLASSES = new Set(['auth', 'timeout', 'offline', 'rate_limit', 'dependency', 'invalid_response']);
+const MAX_TELEMETRY_BYTES = 512;
 
 export type BrowserSession = { expiresAt: string; user: User };
 export type LogoutResult = { revoked: boolean; requestId?: string };
@@ -28,6 +32,50 @@ type TelemetryHook = (event: SessionTelemetryEvent) => void;
 let telemetryHook: TelemetryHook = () => undefined;
 export const setSessionTelemetryHook = (hook?: TelemetryHook) => {
   telemetryHook = hook ?? (() => undefined);
+};
+
+export const createBrowserSessionTelemetryHook = (
+  fetcher: typeof fetch = fetch,
+): TelemetryHook => (event) => {
+  if (!TELEMETRY_OPERATIONS.has(event.operation)
+    || !TELEMETRY_OUTCOMES.has(event.outcome)
+    || !Number.isFinite(event.durationMs)
+    || event.durationMs < 0
+    || (event.failureClass !== undefined && !TELEMETRY_FAILURE_CLASSES.has(event.failureClass))
+    || (event.attempts !== undefined && (!Number.isInteger(event.attempts) || event.attempts < 1 || event.attempts > 3))) {
+    return;
+  }
+
+  const body = JSON.stringify({
+    event: 'browser_session_operation',
+    operation: event.operation,
+    outcome: event.outcome,
+    durationMs: Math.min(60_000, Math.round(event.durationMs)),
+    ...(event.failureClass === undefined ? {} : { failureClass: event.failureClass }),
+    ...(event.attempts === undefined ? {} : { attempts: event.attempts }),
+  });
+  if (new TextEncoder().encode(body).byteLength > MAX_TELEMETRY_BYTES) return;
+
+  try {
+    void Promise.resolve(fetcher('/api/session/telemetry', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: true,
+    })).catch(() => undefined);
+  } catch {
+    // Browser telemetry is best-effort and must never alter session behavior.
+  }
+};
+
+export const registerProductionSessionTelemetry = (
+  production: boolean,
+  fetcher: typeof fetch = fetch,
+): boolean => {
+  if (!production) return false;
+  setSessionTelemetryHook(createBrowserSessionTelemetryHook(fetcher));
+  return true;
 };
 
 class SessionRequestError extends Error {

@@ -46,11 +46,30 @@ interface SyncMessage {
   type: 'CHANGE_SONG' | 'CHANGE_BLOCK' | 'REQUEST_SYNC' | 'SYNC_RESPONSE' | 'CHANGE_BACKGROUND' | 'CHANGE_ANIMATION';
 }
 
+const isInteractiveTarget = (target: EventTarget | null): boolean =>
+  target instanceof Element && target.closest([
+    'a[href]',
+    'button',
+    'input',
+    'select',
+    'textarea',
+    '[contenteditable=""]',
+    '[contenteditable="true"]',
+    '[role="button"]',
+    '[role="combobox"]',
+    '[role="link"]',
+    '[role="slider"]',
+    '[role="spinbutton"]',
+    '[role="switch"]',
+    '[role="textbox"]',
+  ].join(',')) !== null;
+
 export const RehearsalView: React.FC = () => {
   const { rehearsalId } = useParams<{ rehearsalId: string }>();
   const navigate = useNavigate();
   const { rehearsalRepository, syncService, startRehearsal, windowService, updateCustomChords, updateRehearsalStatus } = useDependencies();
   const { user } = useAuth();
+  const realtimeAvailable = syncService.available;
 
   const [rehearsal, setRehearsal] = useState<Rehearsal | null>(null);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
@@ -74,6 +93,7 @@ export const RehearsalView: React.FC = () => {
   const [repertoireExpanded, setRepertoireExpanded] = useState(true);
   const [transitionAnimation, setTransitionAnimation] = useState<TransitionAnimation>('slide-bottom');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const userId = user?.id;
 
   const currentSongIndexRef = useRef(currentSongIndex);
   const currentBlockIndexRef = useRef(currentBlockIndex);
@@ -87,27 +107,25 @@ export const RehearsalView: React.FC = () => {
     transitionAnimationRef.current = transitionAnimation;
   }, [currentSongIndex, currentBlockIndex, currentBackgroundUrl, transitionAnimation]);
 
-  if (!user) return <Navigate to="/" replace />;
-
   const fetchRehearsal = useCallback(async () => {
-    if (!rehearsalId) return;
+    if (!rehearsalId || !userId) return;
     try {
       const data = await rehearsalRepository.getById(rehearsalId);
       setRehearsal(data);
-      setIsLeader(data?.leaderId === user.id);
+      setIsLeader(data?.leaderId === userId);
     } catch (error) {
       console.error('Error loading rehearsal:', error);
     } finally {
       setLoading(false);
     }
-  }, [rehearsalId, rehearsalRepository, user.id]);
+  }, [rehearsalId, rehearsalRepository, userId]);
 
   useEffect(() => {
     fetchRehearsal();
   }, [fetchRehearsal]);
 
   useEffect(() => {
-    if (!rehearsalId) return;
+    if (!rehearsalId || !userId || !realtimeAvailable) return;
     const channelName = `rehearsal-${rehearsalId}`;
 
     const unsubscribe = syncService.subscribe<SyncMessage>(channelName, (msg) => {
@@ -148,10 +166,10 @@ export const RehearsalView: React.FC = () => {
     }
 
     return () => unsubscribe();
-  }, [rehearsalId, syncService, isLeader, loading, rehearsal]);
+  }, [rehearsalId, syncService, isLeader, loading, rehearsal, userId, realtimeAvailable]);
 
   const currentRS = rehearsal?.songs[currentSongIndex];
-  const instrument = user.defaultInstrument || 'General';
+  const instrument = user?.defaultInstrument || 'General';
   const customVersion = currentRS?.adjustedChords.find(ac => ac.instrument === instrument);
   const fullContent = customVersion?.customChords || currentRS?.songDetails?.lyrics || '';
 
@@ -207,12 +225,14 @@ export const RehearsalView: React.FC = () => {
     try {
         await rehearsalRepository.setBackground(rehearsalId, bg.id);
         setCurrentBackgroundUrl(bg.publicUrl);
-        syncService.publish(`rehearsal-${rehearsalId}`, {
-            type: 'CHANGE_BACKGROUND',
-            backgroundUrl: bg.publicUrl
-        });
+        if (realtimeAvailable) {
+          syncService.publish(`rehearsal-${rehearsalId}`, {
+              type: 'CHANGE_BACKGROUND',
+              backgroundUrl: bg.publicUrl
+          });
+        }
         setShowBackgroundManager(false);
-    } catch (e) {
+    } catch {
         alert("Error al cambiar el fondo.");
     }
   };
@@ -220,10 +240,12 @@ export const RehearsalView: React.FC = () => {
   const handleSelectAnimation = (animation: TransitionAnimation) => {
     if (!rehearsalId) return;
     setTransitionAnimation(animation);
-    syncService.publish(`rehearsal-${rehearsalId}`, {
-      type: 'CHANGE_ANIMATION',
-      transitionAnimation: animation
-    });
+    if (realtimeAvailable) {
+      syncService.publish(`rehearsal-${rehearsalId}`, {
+        type: 'CHANGE_ANIMATION',
+        transitionAnimation: animation
+      });
+    }
   };
 
   const changeSong = useCallback((index: number) => {
@@ -233,7 +255,7 @@ export const RehearsalView: React.FC = () => {
     setCurrentBlockIndex(0);
     setIsEditing(false);
 
-    if (isLeader) {
+    if (isLeader && realtimeAvailable) {
       syncService.publish(`rehearsal-${rehearsalId}`, {
         songId: rehearsal.songs[newIndex].songId,
         blockIndex: 0,
@@ -241,23 +263,25 @@ export const RehearsalView: React.FC = () => {
         backgroundUrl: currentBackgroundUrlRef.current
       });
     }
-  }, [rehearsal, isLeader, syncService, rehearsalId]);
+  }, [rehearsal, isLeader, syncService, rehearsalId, realtimeAvailable]);
 
   const changeBlock = useCallback((index: number) => {
     const newBlockIndex = Math.max(0, Math.min(index, blocks.length - 1));
     setCurrentBlockIndex(newBlockIndex);
 
-    if (isLeader) {
+    if (isLeader && realtimeAvailable) {
       syncService.publish(`rehearsal-${rehearsalId}`, {
         blockIndex: newBlockIndex,
         type: 'CHANGE_BLOCK'
       });
     }
-  }, [isLeader, syncService, rehearsalId, blocks.length]);
+  }, [isLeader, syncService, rehearsalId, blocks.length, realtimeAvailable]);
 
   useEffect(() => {
+    if (!userId) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isEditing) return;
+      if (isEditing || isInteractiveTarget(e.target)) return;
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
         if (currentBlockIndex < blocks.length - 1) changeBlock(currentBlockIndex + 1);
@@ -271,7 +295,9 @@ export const RehearsalView: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isEditing, currentBlockIndex, blocks.length, currentSongIndex, rehearsal, changeBlock, changeSong]);
+  }, [isEditing, currentBlockIndex, blocks.length, currentSongIndex, rehearsal, changeBlock, changeSong, userId]);
+
+  if (!user) return <Navigate to="/" replace />;
 
   const handleUpdateStatus = async (status: RehearsalStatus) => {
     if (!rehearsalId) return;
@@ -279,7 +305,7 @@ export const RehearsalView: React.FC = () => {
       await updateRehearsalStatus.execute(rehearsalId, user.id, status);
       await fetchRehearsal();
       if (status === 'COMPLETED') navigate('/dashboard');
-    } catch (e) { alert("Error al cambiar el estado."); }
+    } catch { alert("Error al cambiar el estado."); }
   };
 
   const handleStart = async () => {
@@ -287,7 +313,7 @@ export const RehearsalView: React.FC = () => {
     try {
       await startRehearsal.execute(rehearsalId, user.id);
       await fetchRehearsal();
-    } catch (e) { alert("Error al iniciar."); }
+    } catch { alert("Error al iniciar."); }
   };
 
   const handleOpenProjection = () => {
@@ -331,7 +357,7 @@ export const RehearsalView: React.FC = () => {
       await updateCustomChords.execute(rehearsalId, currentRS.songId, instrument, editedLyrics);
       await fetchRehearsal();
       setIsEditing(false);
-    } catch (e) { alert("Error al guardar tus acordes."); }
+    } catch { alert("Error al guardar tus acordes."); }
     finally { setSavingChords(false); }
   };
 

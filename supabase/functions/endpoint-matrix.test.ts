@@ -16,6 +16,7 @@ import { type UsersDependencies, usersHandler } from "./session-users/index.ts";
 
 const origin = "https://app.example";
 const apiKey = "test-anon-key";
+const modernApiKey = "sb_publishable_test-key";
 const proxySecret = "test-proxy-secret";
 const url = "http://localhost/functions/v1/test";
 const claims = {
@@ -216,7 +217,77 @@ const endpoints = [
 
 Deno.env.set("PIBA_ALLOWED_ORIGINS", origin);
 Deno.env.set("SUPABASE_ANON_KEY", apiKey);
+Deno.env.set(
+  "SUPABASE_PUBLISHABLE_KEYS",
+  JSON.stringify({ default: modernApiKey }),
+);
 Deno.env.set("PIBA_PROXY_SECRET", proxySecret);
+
+const validEndpointRequest = (
+  endpoint: (typeof endpoints)[number],
+  projectKey: string | null,
+) => {
+  const requestBody = endpoint.name === "login"
+    ? body({ accessCode: "code" })
+    : endpoint.name === "create-user"
+    ? body({ firstName: "Grace", lastName: "Hopper", role: "GENERAL" })
+    : endpoint.name === "update-profile"
+    ? body({ firstName: "Grace", lastName: "Hopper" })
+    : undefined;
+  return request(endpoint.method, requestBody, "Bearer valid", projectKey);
+};
+
+Deno.test("Edge endpoint HTTP boundaries accept modern keys and reject missing, wrong, or malformed keys", async () => {
+  for (const endpoint of endpoints) {
+    const accepted = await endpoint.run(
+      validEndpointRequest(endpoint, modernApiKey),
+    );
+    assertEquals(
+      accepted.status,
+      endpoint.name === "create-user" ? 201 : 200,
+      `${endpoint.name} rejected the configured modern key`,
+    );
+    for (const rejectedKey of [null, "sb_publishable_wrong-key"]) {
+      const rejected = await endpoint.run(
+        validEndpointRequest(endpoint, rejectedKey),
+      );
+      assertEquals(
+        rejected.status,
+        401,
+        `${endpoint.name} accepted an invalid key`,
+      );
+      assertEquals(await json(rejected), generic);
+    }
+  }
+
+  try {
+    for (
+      const malformed of [
+        "not-json",
+        "[]",
+        JSON.stringify({ default: "publishable-key" }),
+      ]
+    ) {
+      Deno.env.set("SUPABASE_PUBLISHABLE_KEYS", malformed);
+      for (const endpoint of endpoints) {
+        const rejected = await endpoint.run(
+          validEndpointRequest(endpoint, modernApiKey),
+        );
+        assertEquals(
+          rejected.status,
+          401,
+          `${endpoint.name} accepted malformed key configuration`,
+        );
+        assertEquals(await json(rejected), generic);
+      }
+    }
+  } finally {
+    Deno.env.set(
+      "SUPABASE_PUBLISHABLE_KEYS",
+      JSON.stringify({ default: modernApiKey }),
+    );
+  }
+});
 
 for (const endpoint of endpoints) {
   Deno.test(`${endpoint.name}: origin, OPTIONS, and method matrix`, async () => {

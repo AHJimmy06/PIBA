@@ -1,13 +1,13 @@
 # Secure session rollout and rollback
 
-This runbook separates local apply evidence from a later, independently authorized staging or production rollout. Do not run a command containing `<PROJECT_REF>`, `<DATABASE_URL>`, or a deployment command during SDD apply.
+This runbook separates local evidence, the limited session-infrastructure staging bootstrap, and any later production rollout. The staging bootstrap is non-production input: it cannot authorize production, cannot support the public frontend, and is never part of production rollback. Do not run a command containing `<PROJECT_REF>`, `<DATABASE_URL>`, or a deployment command during SDD apply.
 
 Delivery status: PR1 through PR5 are nondeployable chain slices. Only the tracker aggregate containing every accepted slice is eligible for deployment. The staging rehearsal remains pending separate authorization; templates and local gate output are not deployment receipts.
 
 ## Preconditions
 
 1. Use Node 22, Deno 2.1.4, Supabase CLI 2.109.1, and a running Docker daemon. CI pins the setup actions by commit and the Postgres 17.6.1.143 harness image by multi-platform digest; update those pins only in a reviewed dependency change.
-2. Create a release manifest from `ops/secure-sessions/evidence/release-manifest.template.json`; replace every placeholder and record the exact seven-artifact inventory and SHA-256 checksums for the foundation migration, function lock, built client archive, production workflow, cutover SQL, rollback SQL, and executable verifier. Extra, missing, duplicate, renamed, or mismatched artifacts fail the gate.
+2. Create a release manifest from `ops/secure-sessions/evidence/release-manifest.template.json`; replace every placeholder and record the exact seven production artifact checksums plus the separately classified `stagingBootstrap` SQL and verification checksums. The staging inputs are provider-bound evidence but have `productionEligible=false` and `rollbackMutation=false`; they never become production mutation or rollback steps. Extra, missing, duplicate, renamed, or mismatched artifacts fail the gate.
 3. Bind the tracker/final pull request number and GitHub deployment/run records in the manifest's `deploymentAuthorization` evidence and validate the manifest against `release-manifest.schema.json`. Production authorization comes from two provider-authenticated `APPROVED` pull-request reviews on the manifest commit: distinct `security` and `release-owner` actors and review IDs, neither authored by the pull-request author. The receipt also binds the exact successful `validate-production-cutover` job ID, URL, and attempt. Its presence in the trusted `workflow_dispatch` run proves `validate_production_cutover=true`; the run must use `refs/heads/main` and the job must use the protected `production` environment. Dismissed, superseded, stale-commit, duplicate-actor, self-authored reviews, missing jobs, or failed jobs fail closed. The verifier queries documented pull request, review, deployment, deployment-status, workflow-run, run-jobs, workflow, repository, contents, and Git blob endpoints; it does not claim GitHub exposes protected-environment reviewer identities through an unsupported API.
 4. Confirm `compatibilityEndsAt` is no more than 72 hours after a possible rollback and that the prior function Git SHA/bundles, prior immutable Vercel deployment, and SQL rollback artifact remain available until that time.
 5. Configure repository secrets `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF`, repository variable `SECURE_SESSION_PRODUCTION_ORIGIN`, protect the GitHub `production` environment, and enable the `production-detection` scheduled check. Production detection runs only for `main`, uses bounded API retries, and fails closed for missing secrets, API errors, malformed/empty/null/non-finite samples, fewer than 30 samples for any endpoint, evaluator errors, threshold breaches, proxy synthetic 5xx/timeout/latency, or failure to create/update the stable-key incident issue. The proxy probes execute an invalid login and unauthenticated current-user request through the actual same-origin production HTTP boundary without creating or modifying users. Bind the workflow's actual byte checksum and successful detection receipt in the manifest.
@@ -30,31 +30,53 @@ docker ps --filter 'name=piba-session-harness-' --format '{{.Names}}'
 
 Expected evidence: `security:gate` exits zero; Deno check/tests, disposable SQL harness, focused/full client tests, and build pass; focused lint and diff check exit zero; the final Docker command prints no harness container. Preserve command output hashes outside the repository and record only those SHA-256 values in receipts.
 
+The disposable SQL harness starts with an empty application schema, applies `ops/secure-sessions/staging/bootstrap.sql` through bound psql variables, verifies the complete deny-by-default contract, applies every migration from `20260408014035` onward, and verifies the contract again before inserting synthetic fixtures.
+
 Verifier fixtures use a unique per-process directory under the operating-system temporary directory. `npm run verify:secure-sessions` selects their explicit `--offline-fixture` mode. That mode is test-only and prohibited with `--environment production`; it never reads, rewrites, or deletes operational evidence. Production cannot select fixtures or skip provider verification.
 
 Repository-wide lint is known baseline debt, not a passing secure-session gate. `npm run lint -- --quiet` is expected to exit nonzero with 18 errors; `npm run lint` reports the same 18 errors plus 1 warning in legacy files outside this change. Record that result honestly until the baseline debt is corrected separately; do not disable rules or hide failures.
 
-## Authorized staging rehearsal
+## Limited session staging bootstrap
 
 Set only in an approved operator shell. Do not commit these values:
 
 ```bash
 export RELEASE_ID='<APPROVED_RELEASE_ID>'
-export PROJECT_REF='<STAGING_PROJECT_REF>'
-export DATABASE_URL='<STAGING_DIRECT_DATABASE_URL>'
+export PIBA_DEPLOY_ENV='staging'
+export PIBA_STAGING_PROJECT_REF='ejxfoxbfndplinraqrvw'
+export PIBA_STAGING_DATABASE_URL='<MODE_0600_OR_PROTECTED_SHELL_DATABASE_URL>'
+export PIBA_RELEASE_MANIFEST='ops/secure-sessions/evidence/release-manifest.json'
+export PIBA_GIT_COMMIT='<APPROVED_40_CHAR_GIT_SHA>'
+export GH_TOKEN='<GITHUB_TOKEN_WITH_PROVIDER_READ_ACCESS>'
+export GITHUB_REPOSITORY='<OWNER/REPOSITORY>'
+export SUPABASE_ACCESS_TOKEN='<SUPABASE_PROVIDER_ACCESS_TOKEN>'
 export FUNCTION_VERSION='<FUNCTION_VERSION>'
 export CLIENT_VERSION='<CLIENT_VERSION>'
 sha256sum ops/secure-sessions/evidence/release-manifest.json
 ```
 
-After separate authorization, execute phases in this exact order and complete the matching receipt after each succeeds:
-
-1. Foundation deploy, actor role `database-operator`:
+The only approved target is `PIBA_STAGING` (`ejxfoxbfndplinraqrvw`). Before connecting, the runner validates the manifest and provider-authenticated GitHub reviews/deployment at the exact commit, then fetches that exact project from the Supabase Management API and requires `ACTIVE_HEALTHY`. It parses the database URL structurally: direct connections require host `db.ejxfoxbfndplinraqrvw.supabase.co`, user `postgres`, and port 5432; supported pooler connections require a `*.pooler.supabase.com` host, user `postgres.ejxfoxbfndplinraqrvw`, and port 5432 or 6543. Both require database `/postgres`, a password, and the sole query parameter `sslmode=require`. The runner then proves the live PostgreSQL connection uses SSL. Refs in passwords, paths, fragments, or query parameters never establish identity. URLs and credentials must never be printed.
 
 ```bash
-psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f ops/secure-sessions/migration_drift_gate.sql
-supabase db push --project-ref "$PROJECT_REF" --include-all
-supabase migration list --project-ref "$PROJECT_REF"
+scripts/bootstrap-secure-session-staging.sh
+supabase migration list --db-url "$PIBA_STAGING_DATABASE_URL"
+```
+
+Stop after session-infrastructure verification. Do not deploy the public frontend against this backend: direct songs, rehearsals, memberships, chords, and backgrounds calls are expected to fail because client table grants and permissive policies do not exist. The limited-staging client deliberately disables Supabase Realtime, creates no Broadcast channels, and provides no cross-client rehearsal synchronization; restoring Realtime requires a separately authorized server-enforced channel policy. Never use `supabase db push --include-all`; the bootstrap is not a migration and production history must remain unchanged.
+
+The runner is a four-state recovery machine: `fresh` applies the atomic bootstrap; `bootstrapped` and exact `migrations-1` through `migrations-3` prefixes run one `db push`; `complete` skips mutation and reruns final verification. A failed push is never retried blindly in the same invocation. Rerun the same command after correcting the external failure: it revalidates both providers, URL/SSL identity, the complete bootstrap contract, and exact migration prefix before resuming. Unknown objects, partial bootstrap structure, unexpected/reordered history, or failed final verification stop without cleanup or another mutation. Never manually delete migration rows or bootstrap objects to force progress.
+
+## Future full rollout (not authorized by limited staging)
+
+The remaining phases require a separate architecture and authorization that provides full application-data access control. Before any future production foundation push, run the read-only gate with real psql variables; it rejects the staging bootstrap history and accepts only the established production baseline:
+
+```bash
+psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
+  -v deployment_environment=production \
+  -v target_project_ref="$PROJECT_REF" \
+  -v production_project_ref="$PROJECT_REF" \
+  -f ops/secure-sessions/migration_drift_gate.sql
+supabase db push --db-url "$DATABASE_URL"
 ```
 
 2. Function deploy, actor role `function-operator`. Configure the remote Edge runtime before deployment. The five backfill settings are server environment values, not CLI-shell exports; keep their values out of the repository and use a mode-0600 temporary env file so the release secret does not appear in command arguments or history:
@@ -77,9 +99,9 @@ supabase functions deploy session-login session-refresh session-logout session-u
 supabase functions list --project-ref "$PROJECT_REF"
 ```
 
-Record `FUNCTION_VERSION`, the exact six-function inventory, each immutable source-bundle location/hash in both the manifest and function receipt, and the deployment output checksum. Required server-only values are `SUPABASE_SERVICE_ROLE_KEY`, `PIBA_SESSION_PEPPER`, ES256 signing/JWK material, `PIBA_ALLOWED_ORIGINS`, and `PIBA_PROXY_SECRET`. The proxy secret must be a high-entropy value shared only with the Vercel server environment; never expose it through a `VITE_` variable.
+Record `FUNCTION_VERSION`, the exact six-function inventory, each immutable source-bundle location/hash in both the manifest and function receipt, and the deployment output checksum. Required server-only values are `SUPABASE_SERVICE_ROLE_KEY`, `PIBA_SESSION_PEPPER`, ES256 signing/JWK material, `PIBA_ALLOWED_ORIGINS`, and `PIBA_PROXY_SECRET`. Confirm that the hosted Edge runtime also exposes `SUPABASE_PUBLISHABLE_KEYS`, the platform-managed JSON dictionary of modern publishable keys; `SUPABASE_ANON_KEY` remains accepted during the legacy transition. The proxy secret must be a high-entropy value shared only with the Vercel server environment; never expose it through a `VITE_` variable.
 
-3. Client and HttpOnly proxy deploy, actor role `client-operator`. Configure `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `PIBA_PROXY_SECRET` in the Vercel server environment for the exact staging or production target before building. `SUPABASE_URL` must use HTTPS, the publishable key must belong to that project, and `PIBA_PROXY_SECRET` must exactly match the Edge secret configured in phase 2. None of these values belongs in the browser bundle; in particular, do not use a `VITE_` prefix for proxy secrets.
+3. Client and HttpOnly proxy deploy, actor role `client-operator`. Configure `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `PIBA_PROXY_SECRET` in the Vercel server environment for the exact staging or production target before building. `SUPABASE_PUBLISHABLE_KEY` must be a modern `sb_publishable_...` key present in the Edge runtime's `SUPABASE_PUBLISHABLE_KEYS` dictionary. During the legacy transition only, omit `SUPABASE_PUBLISHABLE_KEY` and configure the matching `SUPABASE_ANON_KEY` instead. The proxy prefers the modern key whenever it is present and fails closed if it is malformed; it never falls back from a malformed modern value. `SUPABASE_URL` must use HTTPS, the selected key must belong to that project, and `PIBA_PROXY_SECRET` must exactly match the Edge secret configured in phase 2. None of these values belongs in the browser bundle; in particular, do not use a `VITE_` prefix for proxy secrets.
 
 ```bash
 npm ci
@@ -104,14 +126,18 @@ Every invocation, including localhost, requires matching caller environment, pro
 
 5. Observe staging for exactly one continuous 30-minute window. The `release-owner` owns the decision; the `function-operator` runs the queries and records the secret-free output SHA-256, UTC start/end, unique query IDs, per-SLO results/sample counts/thresholds/decisions/owners, and both actors in the cutover receipt. Bind the immutable function and client versions through their manifest-referenced deployment receipt paths and SHA-256 values; also record the function deployment output checksum, client provider deployment ID, and client asset-manifest checksum.
 
-Use the Dashboard Logs Explorer for `edge_logs` with this filter and export only aggregate results. CORS responses, including rejected origins and successful `OPTIONS` preflights, are explicitly excluded from completion telemetry:
+Use the Dashboard Logs Explorer for `function_logs` with this filter and export only aggregate results. Completion telemetry is emitted as JSON in `event_message`; endpoint, status, failure class, and duration are not top-level log columns. CORS responses, including rejected origins and successful `OPTIONS` preflights, are explicitly excluded from completion telemetry:
 
 ```sql
-select endpoint, status, failure_class, count(*) as requests,
-       percentile_cont(0.95) within group (order by duration_ms) as p95_ms
-from edge_logs
-where timestamp >= '<OBSERVATION_START_UTC>' and timestamp < '<OBSERVATION_END_UTC>'
-  and endpoint in ('login','refresh','logout','current-user','list-users','create-user','update-profile')
+select json_value(event_message, '$.endpoint') as endpoint,
+       cast(json_value(event_message, '$.status') as int64) as status,
+       coalesce(json_value(event_message, '$.failure_class'), 'none') as failure_class,
+       count(*) as requests,
+       approx_quantiles(cast(json_value(event_message, '$.duration_ms') as float64), 100)[offset(95)] as p95_ms
+from function_logs
+where timestamp >= timestamp('<OBSERVATION_START_UTC>')
+  and timestamp < timestamp('<OBSERVATION_END_UTC>')
+  and json_value(event_message, '$.endpoint') in ('login','refresh','logout','current-user','list-users','create-user','update-profile')
 group by endpoint,status,failure_class order by endpoint,status,failure_class;
 ```
 
@@ -139,11 +165,11 @@ GH_TOKEN="$GH_TOKEN" GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
 Staging receipts cannot pass that command. Immediately after SQL succeeds, create `cutover-execution.receipt.json` with `phase=cutover-execution` and validate it against `phase-receipt.schema.json`. Bind the unchanged authorization receipt hash, SQL file/output hashes, actor, actual commit, UTC start/completion, `status=succeeded`, and observed `resultingMigrationState=hash_only`. Never rewrite the approved authorization receipt. Rollback uses this execution receipt's `releaseId` as `expected_release_id`; it never infers live state from the rollback request ID.
 
 Production uses the same order only under a separate production authorization. Staging receipts are evidence, not production approval. Production verification must target the immutable Vercel deployment and confirm the same three server-only proxy environment names before traffic is moved.
-The release gate requires the manifest-bound `production-detection` check and documented secret-name evidence before production cutover. Copy the successful run's JSON receipt from its GitHub step summary into `productionDetection.evidence`; the validator fetches exact authorization and detection runs, the exact successful cutover job, workflow IDs/paths, trusted default-branch refs/events, attempts, timestamps, tracker/final PR reviews at the exact commit, deployment, and bound deployment status. It also fetches the release manifest, mandatory artifacts, candidate function bundles, and workflow as repository contents or Git blobs at `gitCommit`, then compares their exact bytes and SHA-256 values; local files can never substitute for provider content. The security approver must have GitHub `admin`; the release owner must have `push`, `maintain`, or `admin`; actors must be distinct. If `SECURITY_APPROVER_TEAM_SLUG` is configured, the security approver must additionally have active organization-team membership. API errors and rate limits fail closed. Preserve API responses outside the repository. Prose, arbitrary actor strings, or a manually viewed dashboard are not evidence.
+The release gate requires the manifest-bound `production-detection` check and documented secret-name evidence before production cutover. Each expected rejection probe must return a unique valid `x-request-id`. Request IDs never enter SQL: the detector fetches the bounded raw telemetry fields and excludes exactly those two validated IDs in memory before aggregation. It does not exclude by status or endpoint, so every unrelated 4xx, 401, and 429 remains in the SLO sample. The receipt binds `projectRef` to `manifest.supabaseProjectRef` and `checkedOrigin` to `manifest.clientDeploymentUrl`; GitHub deployment and latest deployment-status evidence must report that same immutable URL. Copy the successful run's JSON receipt from its GitHub step summary into `productionDetection.evidence`; the validator fetches exact authorization and detection runs, the exact successful cutover job, workflow IDs/paths, trusted default-branch refs/events, attempts, timestamps, tracker/final PR reviews at the exact commit, deployment, and bound deployment status. It also fetches the release manifest, mandatory production artifacts, non-production staging bootstrap evidence, candidate function bundles, and workflow as repository contents or Git blobs at `gitCommit`, then compares their exact bytes and SHA-256 values; local files can never substitute for provider content. The security approver must have GitHub `admin`; the release owner must have `push`, `maintain`, or `admin`; actors must be distinct. If `SECURITY_APPROVER_TEAM_SLUG` is configured, the security approver must additionally have active organization-team membership. API errors and rate limits fail closed. Preserve API responses outside the repository. Prose, arbitrary actor strings, or a manually viewed dashboard are not evidence.
 
 ## Finite rollback
 
-Rollback requires an incident commander and the manifest-bound prior function Git SHA and six source-bundle locations/hashes, prior Vercel immutable deployment ID/URL, and SQL rollback path/hash. Capture these immutable artifacts before function deployment. The Supabase CLI writes downloaded source beneath the supplied project workdir; package each function with its shared dependencies and record the resulting tarball path/hash:
+Rollback requires an incident commander and the manifest-bound prior function Git SHA and six source-bundle locations/hashes, prior Vercel immutable deployment ID/URL, and SQL rollback path/hash. It never applies, removes, or reconciles the non-production staging bootstrap. The prior Vercel deployment must be the deployment paired with those prior functions and configured to forward their accepted legacy `SUPABASE_ANON_KEY`. Capture these immutable artifacts before function deployment. The Supabase CLI writes downloaded source beneath the supplied project workdir; package each function with its shared dependencies and record the resulting tarball path/hash:
 
 ```bash
 PRIOR_ROOT="$(mktemp -d)"
@@ -159,7 +185,32 @@ rm -rf "$PRIOR_ROOT"
 
 Do not proceed until all six immutable locations and reproduced hashes are in the manifest.
 
-Use the executable, fail-fast rollback with pinned Supabase `2.109.1` and Vercel `46.0.2` CLIs. It verifies every bundle, overwrites each deployed function before any deletion is considered, retries each remote operation with bounded backoff, checkpoints every completed function/Vercel/SQL step, and resumes without repeating completed steps. Any failed step stops the rollback. No current function is deleted before its prior version is live.
+Use the executable, fail-fast rollback with pinned Supabase `2.109.1` and Vercel `46.0.2` CLIs. Before any mutation, create an open GitHub issue titled `[secure-session-rollback] <CUTOVER_RELEASE_ID>`. A repository incident commander with `maintain` or `admin` permission, distinct from the cutover actor and all cutover/deployment approvers, must post exactly `PIBA secure-session rollback authorization`, two newlines, and the compact JSON binding below. Store the matching local authorization receipt outside source control; its `commentBodySha256` is the SHA-256 of that exact comment body. The executor reads the local receipt, fetches the issue, comment, actor, and permission from GitHub with `GH_TOKEN`, and rejects local substitution, closed issues, mismatched content, future timestamps, or reused governance actors before running Vercel, Supabase, or SQL commands.
+
+```json
+{
+  "provider": "github",
+  "repository": "OWNER/REPOSITORY",
+  "issueNumber": 1,
+  "commentId": 1,
+  "actor": "INCIDENT_COMMANDER_GITHUB_LOGIN",
+  "authorizedAt": "2026-01-01T00:00:00Z",
+  "binding": {
+    "decision": "rollback",
+    "environment": "production",
+    "rollbackReleaseId": "APPROVED_ROLLBACK_RELEASE_ID",
+    "expectedReleaseId": "ACTUAL_CUTOVER_RELEASE_ID",
+    "gitCommit": "MANIFEST_GIT_COMMIT",
+    "manifestSha256": "RELEASE_MANIFEST_SHA256",
+    "executionReceiptSha256": "CUTOVER_EXECUTION_RECEIPT_SHA256",
+    "priorVercelDeploymentId": "MANIFEST_BOUND_DEPLOYMENT_ID",
+    "priorFunctionGitSha": "MANIFEST_BOUND_PRIOR_FUNCTION_GIT_SHA"
+  },
+  "commentBodySha256": "EXACT_GITHUB_COMMENT_BODY_SHA256"
+}
+```
+
+After provider authorization succeeds, the executor first restores the prior Vercel deployment and waits for provider-confirmed rollback status, so callers forward the legacy anon key that both current and prior functions accept. Only then does it verify and restore each prior function bundle, followed by SQL. It retries each remote operation with bounded backoff, checkpoints every completed Vercel/function/SQL step, and resumes without repeating completed mutation steps. Any failed step stops the rollback. This order prevents a modern-key proxy from calling legacy-only functions; no current function is deleted before its prior version is live.
 
 ```bash
 export RELEASE_ID='<APPROVED_ROLLBACK_RELEASE_ID>'
@@ -168,11 +219,15 @@ export DATABASE_URL='<AUTHORIZED_DIRECT_DATABASE_URL>'
 export PRIOR_VERCEL_DEPLOYMENT_ID='<MANIFEST_BOUND_DEPLOYMENT_ID>'
 export VERCEL_PROJECT_ID='<MANIFEST_BOUND_PROJECT_ID>'
 export VERCEL_ORG_ID='<MANIFEST_BOUND_ORG_ID>'
+export GH_TOKEN='<GITHUB_TOKEN_WITH_ISSUES_AND_METADATA_READ>'
+export GITHUB_REPOSITORY='<OWNER/REPOSITORY>'
+export ROLLBACK_AUTHORIZATION_PATH='<MODE_0600_ROLLBACK_AUTHORIZATION_JSON>'
 npm run rollback:secure-sessions -- \
   ops/secure-sessions/evidence/release-manifest.json \
   ops/secure-sessions/evidence/cutover-execution.receipt.json \
   production \
-  ops/secure-sessions/evidence/rollback-checkpoint-$RELEASE_ID.json
+  ops/secure-sessions/evidence/rollback-checkpoint-$RELEASE_ID.json \
+  "$ROLLBACK_AUTHORIZATION_PATH"
 ```
 
-The executor validates manifest, authorization, execution, and checkpoint schemas before mutation; hashes their actual bytes; binds release, environment, candidate commit, manifest, authorization, cutover/rollback SQL, current/prior function bundles, and Vercel/Supabase targets. Environment target IDs must equal the manifest and never override it. Checkpoints are atomically replaced, identity-bound, ordered prefixes of the eight allowed steps, and rejected when stale, unknown, skipped, or reordered. Complete `rollback.receipt.template.json` with the actual authorization/execution/checkpoint hashes, its release as `expectedReleaseId`, checkpoint receipt path, exact prior artifacts, output hashes, and compatibility deadline. The script supplies both `release_id=$RELEASE_ID` and `expected_release_id=<actual cutover release>` to SQL. Retain credentials and audit evidence, never rewrite migration history, never restore browser access to credentials, and remove compatibility through a separately reviewed release before the recorded deadline.
+The executor validates manifest, cutover authorization, execution, rollback authorization, and checkpoint evidence before mutation; hashes their actual bytes; binds release, environment, candidate commit, manifest, authorization, cutover/rollback SQL, current/prior function bundles, and Vercel/Supabase targets. Environment target IDs must equal the manifest and never override it. The checkpoint's `authorizationReceiptSha256` is the rollback-specific authorization receipt hash; the execution receipt transitively preserves the earlier cutover authorization hash. Checkpoints are atomically replaced, identity-bound, ordered prefixes of the eight allowed steps, and rejected when stale, unknown, skipped, or reordered. Complete `rollback.receipt.template.json` with the rollback authorization/execution/checkpoint hashes, its release as `expectedReleaseId`, checkpoint receipt path, exact prior artifacts, output hashes, and compatibility deadline. The script supplies both `release_id=$RELEASE_ID` and `expected_release_id=<actual cutover release>` to SQL. After every SQL attempt, including an apparent success, it reads live `security_settings` state. A failed command is retried only when live state still exactly matches the pre-rollback cutover release; an already-applied state is checkpointed as reconciled, while unknown or contradictory state stops without retry or checkpoint. Retain credentials and audit evidence, never rewrite migration history, never restore browser access to credentials, and remove compatibility through a separately reviewed release before the recorded deadline.

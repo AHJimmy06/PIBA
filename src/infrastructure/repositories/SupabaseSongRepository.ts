@@ -33,7 +33,7 @@ export class SupabaseSongRepository implements SongRepository {
    * Guarda una canción (Crea si no tiene ID, Actualiza si lo tiene).
    */
   async save(song: Song | Omit<Song, "id">): Promise<Song> {
-    const persistenceData: any = {
+    const persistenceData: Omit<SongRow, "id"> & { id?: string } = {
       title: song.title,
       author: song.author,
       lyrics: song.lyrics,

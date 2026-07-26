@@ -19,7 +19,7 @@ export function transposeChords(text: string, semitones: number): string {
 
   return text.replace(/\[([A-G][b#]?)(.*?)\]/g, (match, root, suffix) => {
     // 1. Normalizar nota (Bemol -> Sostenido)
-    let normalizedRoot = flatMap[root] || root;
+    const normalizedRoot = flatMap[root] || root;
 
     // 2. Encontrar índice actual
     const currentIndex = notes.indexOf(normalizedRoot);

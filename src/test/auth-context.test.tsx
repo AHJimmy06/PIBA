@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider, useAuth } from '@/presentation/context/AuthContext';
 
 const mocks = vi.hoisted(() => ({
@@ -30,10 +30,24 @@ const Probe = () => {
   );
 };
 
+const user = (firstName: string) => ({ id: 'u', firstName, lastName: 'User', role: 'GENERAL' as const });
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('AuthProvider', () => {
   beforeEach(() => {
     mocks.currentUser.mockReset();
     mocks.logout.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('hydrates display identity from the HttpOnly-cookie current-user boundary', async () => {
@@ -68,7 +82,85 @@ describe('AuthProvider', () => {
     await act(async () => vi.advanceTimersByTimeAsync(500));
     expect(screen.getByText('Backoff')).toBeInTheDocument();
     expect(screen.getByText('settled')).toBeInTheDocument();
-    vi.useRealTimers();
+    expect(mocks.currentUser).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels a scheduled retry when the session-cleared event arrives', async () => {
+    vi.useFakeTimers();
+    mocks.currentUser
+      .mockRejectedValueOnce(new Error('transient'))
+      .mockResolvedValueOnce(user('Stale'));
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await act(async () => undefined);
+
+    await act(async () => window.dispatchEvent(new Event('piba-session-cleared')));
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+
+    expect(mocks.currentUser).toHaveBeenCalledOnce();
+    expect(screen.getByText('signed-out')).toBeInTheDocument();
+    expect(screen.getByText('settled')).toBeInTheDocument();
+  });
+
+  it('cancels a scheduled retry when logout starts', async () => {
+    vi.useFakeTimers();
+    mocks.currentUser
+      .mockRejectedValueOnce(new Error('transient'))
+      .mockResolvedValueOnce(user('Stale'));
+    mocks.logout.mockResolvedValue({ revoked: true });
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await act(async () => undefined);
+
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'logout' })));
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+
+    expect(mocks.currentUser).toHaveBeenCalledOnce();
+    expect(screen.getByText('signed-out')).toBeInTheDocument();
+    expect(screen.getByText('settled')).toBeInTheDocument();
+  });
+
+  it('cancels a scheduled retry when an explicit login succeeds', async () => {
+    vi.useFakeTimers();
+    mocks.currentUser
+      .mockRejectedValueOnce(new Error('transient'))
+      .mockResolvedValueOnce(user('Stale'));
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await act(async () => undefined);
+
+    fireEvent.click(screen.getByRole('button', { name: 'login' }));
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+
+    expect(mocks.currentUser).toHaveBeenCalledOnce();
+    expect(screen.getByText('Updated')).toBeInTheDocument();
+    expect(screen.getByText('settled')).toBeInTheDocument();
+  });
+
+  it.each(['session clear', 'explicit login'])('ignores in-flight hydration after %s', async (actionName) => {
+    const hydration = deferred<ReturnType<typeof user>>();
+    mocks.currentUser.mockReturnValue(hydration.promise);
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await act(async () => undefined);
+
+    if (actionName === 'session clear') {
+      await act(async () => window.dispatchEvent(new Event('piba-session-cleared')));
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: 'login' }));
+    }
+    await act(async () => hydration.resolve(user('Stale')));
+
+    expect(screen.getByText(actionName === 'session clear' ? 'signed-out' : 'Updated')).toBeInTheDocument();
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument();
+  });
+
+  it('clears a pending retry on unmount without starting another hydration', async () => {
+    vi.useFakeTimers();
+    mocks.currentUser.mockRejectedValueOnce(new Error('transient'));
+    const view = render(<AuthProvider><Probe /></AuthProvider>);
+    await act(async () => undefined);
+
+    view.unmount();
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+
+    expect(mocks.currentUser).toHaveBeenCalledOnce();
   });
 
   it('retains authenticated UI and exposes an actionable warning when logout revocation fails', async () => {
@@ -110,5 +202,41 @@ describe('AuthProvider', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'login' }));
     expect(screen.getByText('Updated')).toBeInTheDocument();
+  });
+
+  it('keeps a newer completed login when an older logout resolves later', async () => {
+    const pendingLogout = deferred<{ revoked: boolean }>();
+    mocks.currentUser.mockResolvedValue(user('Server'));
+    mocks.logout.mockReturnValue(pendingLogout.promise);
+    render(<AuthProvider><Probe /></AuthProvider>);
+    expect(await screen.findByText('Server')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'logout' }));
+    fireEvent.click(screen.getByRole('button', { name: 'login' }));
+    expect(screen.getByText('Updated')).toBeInTheDocument();
+
+    await act(async () => pendingLogout.resolve({ revoked: true }));
+    expect(screen.getByText('Updated')).toBeInTheDocument();
+    expect(screen.getByText('settled')).toBeInTheDocument();
+    expect(screen.getByText('revocation-confirmed')).toBeInTheDocument();
+  });
+
+  it('ignores an in-flight logout completion after provider unmount', async () => {
+    const pendingLogout = deferred<{ revoked: boolean; requestId: string }>();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.currentUser.mockResolvedValue(user('Server'));
+    mocks.logout.mockReturnValue(pendingLogout.promise);
+    const view = render(<AuthProvider><Probe /></AuthProvider>);
+    expect(await screen.findByText('Server')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'logout' }));
+    expect(mocks.logout).toHaveBeenCalledOnce();
+    view.unmount();
+    await act(async () => pendingLogout.resolve({ revoked: false, requestId: 'late-warning' }));
+
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(mocks.currentUser).toHaveBeenCalledOnce();
+    expect(mocks.logout).toHaveBeenCalledOnce();
+    consoleError.mockRestore();
   });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDependencies } from '@/presentation/context/DependenciesProvider';
 import { useAuth } from '@/presentation/context/AuthContext';
 import { Button } from '@/presentation/components/ui/button';
@@ -24,6 +24,9 @@ interface BackgroundManagerProps {
     onClose: () => void;
 }
 
+const getErrorMessage = (error: unknown): string =>
+    error instanceof Error ? error.message : 'Ocurrió un error inesperado.';
+
 export const BackgroundManager: React.FC<BackgroundManagerProps> = ({ onSelect, onClose }) => {
     const { uploadBackground, getBackgrounds, deleteBackground } = useDependencies();
     const { user } = useAuth();
@@ -38,7 +41,7 @@ export const BackgroundManager: React.FC<BackgroundManagerProps> = ({ onSelect, 
 
     const isLeader = user?.role === 'LIDER_REPASO';
 
-    const loadBackgrounds = async () => {
+    const loadBackgrounds = useCallback(async () => {
         try {
             const data = await getBackgrounds.execute();
             setBackgrounds(data);
@@ -47,11 +50,11 @@ export const BackgroundManager: React.FC<BackgroundManagerProps> = ({ onSelect, 
         } finally {
             setLoading(false);
         }
-    };
+    }, [getBackgrounds]);
 
     useEffect(() => {
         loadBackgrounds();
-    }, []);
+    }, [loadBackgrounds]);
 
     // Asegurar que el dialog principal permanezca abierto cuando se interactúa con AlertDialog
     useEffect(() => {
@@ -66,8 +69,8 @@ export const BackgroundManager: React.FC<BackgroundManagerProps> = ({ onSelect, 
         try {
             await uploadBackground.execute(file, file.name, user.id);
             await loadBackgrounds();
-        } catch (e: any) {
-            alert(e.message);
+        } catch (error: unknown) {
+            alert(getErrorMessage(error));
         } finally {
             setSaving(false);
         }
@@ -86,8 +89,8 @@ export const BackgroundManager: React.FC<BackgroundManagerProps> = ({ onSelect, 
             await deleteBackground.execute(deleteTarget.id, deleteTarget.storagePath);
             setDeleteTarget(null);
             await loadBackgrounds();
-        } catch (e: any) {
-            alert(e.message);
+        } catch (error: unknown) {
+            alert(getErrorMessage(error));
         } finally {
             setDeleting(false);
         }

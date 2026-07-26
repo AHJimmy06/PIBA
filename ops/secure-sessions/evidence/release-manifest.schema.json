@@ -4,7 +4,7 @@
   "title": "Secure session release manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["releaseId", "createdAt", "gitCommit", "supabaseProjectRef", "vercelProjectId", "vercelOrgId", "foundationMigration", "functionVersion", "functionBundles", "clientVersion", "clientDeploymentId", "clientAssetManifestSha256", "artifacts", "priorFunctions", "priorVercelDeployment", "sqlRollback", "productionDetection", "deploymentAuthorization", "rollbackAt", "compatibilityEndsAt"],
+  "required": ["releaseId", "createdAt", "gitCommit", "supabaseProjectRef", "vercelProjectId", "vercelOrgId", "foundationMigration", "stagingBootstrap", "functionVersion", "functionBundles", "clientVersion", "clientDeploymentId", "clientDeploymentUrl", "clientAssetManifestSha256", "artifacts", "priorFunctions", "priorVercelDeployment", "sqlRollback", "productionDetection", "deploymentAuthorization", "rollbackAt", "compatibilityEndsAt"],
   "properties": {
     "releaseId": { "allOf": [{ "$ref": "#/$defs/nonPlaceholder" }, { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$" }] },
     "createdAt": { "$ref": "#/$defs/operationalDateTime" },
@@ -13,10 +13,26 @@
     "vercelProjectId": { "type": "string", "pattern": "^prj_[A-Za-z0-9]{8,}$" },
     "vercelOrgId": { "type": "string", "pattern": "^team_[A-Za-z0-9]{8,}$" },
     "foundationMigration": { "const": "20260408020000_secure_session_foundation.sql" },
+    "stagingBootstrap": {
+      "type": "object", "additionalProperties": false,
+      "required": ["classification", "allowedEnvironment", "approvedProjectRef", "productionEligible", "rollbackMutation", "path", "sha256", "verificationPath", "verificationSha256"],
+      "properties": {
+        "classification": { "const": "non-production-session-staging-input" },
+        "allowedEnvironment": { "const": "staging" },
+        "approvedProjectRef": { "const": "ejxfoxbfndplinraqrvw" },
+        "productionEligible": { "const": false },
+        "rollbackMutation": { "const": false },
+        "path": { "const": "ops/secure-sessions/staging/bootstrap.sql" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "verificationPath": { "const": "ops/secure-sessions/staging/verify-bootstrap.sql" },
+        "verificationSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
     "functionVersion": { "$ref": "#/$defs/nonPlaceholder" },
     "functionBundles": { "$ref": "#/$defs/functionBundles" },
     "clientVersion": { "$ref": "#/$defs/nonPlaceholder" },
     "clientDeploymentId": { "type": "string", "pattern": "^dpl_[A-Za-z0-9]{8,}$" },
+    "clientDeploymentUrl": { "type": "string", "format": "uri", "pattern": "^https://[A-Za-z0-9.-]+$" },
     "clientAssetManifestSha256": { "$ref": "#/$defs/sha256" },
     "artifacts": {
       "type": "array", "minItems": 7, "maxItems": 7, "uniqueItems": true,
@@ -100,11 +116,13 @@
     },
     "productionDetectionEvidence": {
       "type": "object", "additionalProperties": false,
-      "required": ["provider", "runId", "runAttempt", "runUrl", "createdAt", "environment", "actor", "commit", "workflowSha256", "configuredSecretNames", "healthObservedAt", "completedAt", "proxySyntheticResults", "endpointResults", "status"],
+      "required": ["provider", "runId", "runAttempt", "runUrl", "createdAt", "environment", "actor", "commit", "projectRef", "checkedOrigin", "workflowSha256", "configuredSecretNames", "healthObservedAt", "completedAt", "proxySyntheticResults", "endpointResults", "status"],
       "properties": {
         "provider": { "const": "github" }, "runId": { "type": "integer", "minimum": 1 }, "runAttempt": { "type": "integer", "minimum": 1 },
         "runUrl": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/.+/actions/runs/[0-9]+$" }, "createdAt": { "$ref": "#/$defs/operationalDateTime" }, "environment": { "const": "production" },
-        "actor": { "$ref": "#/$defs/nonPlaceholder" }, "commit": { "$ref": "#/$defs/gitSha" }, "workflowSha256": { "$ref": "#/$defs/sha256" },
+        "actor": { "$ref": "#/$defs/nonPlaceholder" }, "commit": { "$ref": "#/$defs/gitSha" },
+        "projectRef": { "type": "string", "pattern": "^[a-z0-9]{8,32}$" }, "checkedOrigin": { "type": "string", "format": "uri", "pattern": "^https://[A-Za-z0-9.-]+$" },
+        "workflowSha256": { "$ref": "#/$defs/sha256" },
         "configuredSecretNames": { "const": ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF"] }, "healthObservedAt": { "$ref": "#/$defs/operationalDateTime" },
         "completedAt": { "$ref": "#/$defs/operationalDateTime" },
         "proxySyntheticResults": {

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  createBrowserSessionTelemetryHook,
+  registerProductionSessionTelemetry,
   SessionApi,
   setSessionTelemetryHook,
   type SessionTelemetryEvent,
@@ -86,6 +88,72 @@ describe('SessionApi cookie client', () => {
     expect(fetcher.mock.calls.filter(([url]) => url === '/api/session/refresh')).toHaveLength(3);
     expect(events).toContainEqual(expect.objectContaining({ operation: 'refresh', outcome: 'failure', failureClass: 'timeout', attempts: 3 }));
     expect(JSON.stringify(events)).not.toContain(actorId);
+  });
+
+  it('posts only the bounded telemetry contract and never throws into browser flows', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new TypeError('offline'));
+    const hook = createBrowserSessionTelemetryHook(fetcher as typeof fetch);
+
+    expect(() => hook({
+      operation: 'refresh',
+      outcome: 'failure',
+      durationMs: 123.6,
+      failureClass: 'timeout',
+      attempts: 3,
+      token: 'must-not-be-sent',
+      accessCode: 'must-not-be-sent',
+    } as SessionTelemetryEvent & { accessCode: string; token: string })).not.toThrow();
+    await Promise.resolve();
+
+    expect(fetcher).toHaveBeenCalledWith('/api/session/telemetry', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'browser_session_operation',
+        operation: 'refresh',
+        outcome: 'failure',
+        durationMs: 124,
+        failureClass: 'timeout',
+        attempts: 3,
+      }),
+      keepalive: true,
+    });
+    expect(JSON.stringify(fetcher.mock.calls)).not.toMatch(/must-not-be-sent|accessCode|token/);
+
+    hook({ operation: 'invalid', outcome: 'failure', durationMs: 0 } as unknown as SessionTelemetryEvent);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('executes production registration and emits refresh and logout success telemetry', async () => {
+    const telemetryFetcher = vi.fn().mockResolvedValue(json({ ok: true }, 202));
+    expect(registerProductionSessionTelemetry(true, telemetryFetcher as typeof fetch)).toBe(true);
+    const apiFetcher = vi.fn()
+      .mockResolvedValueOnce(json({}, 401))
+      .mockResolvedValueOnce(json({ expiresAt: '2099-01-01T00:00:00Z' }))
+      .mockResolvedValueOnce(json({ user: safeUser() }))
+      .mockResolvedValueOnce(json({ ok: true }));
+    const api = new SessionApi(apiFetcher as typeof fetch, { now: () => 100 });
+
+    await expect(api.currentUser()).resolves.toMatchObject({ id: actorId });
+    await expect(api.logout()).resolves.toEqual({ revoked: true });
+
+    const telemetry = telemetryFetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+    expect(telemetry).toEqual([
+      {
+        event: 'browser_session_operation',
+        operation: 'refresh',
+        outcome: 'success',
+        durationMs: 0,
+        attempts: 1,
+      },
+      {
+        event: 'browser_session_operation',
+        operation: 'logout',
+        outcome: 'success',
+        durationMs: 0,
+      },
+    ]);
   });
 
   it.each([

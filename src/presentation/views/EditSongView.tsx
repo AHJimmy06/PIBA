@@ -84,7 +84,7 @@ export const EditSongView: React.FC = () => {
       const songData = { title, author, lyrics, baseChords };
       await saveSong.execute(songId ? { ...songData, id: songId } : songData);
       navigate('/songs');
-    } catch (error) {
+    } catch {
       alert("Error al guardar la canción.");
     } finally {
       setSaving(false);

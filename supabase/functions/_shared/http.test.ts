@@ -9,9 +9,100 @@ import {
   handleCors,
   p95DurationMs,
   readJsonBody,
+  requireProjectApiKey,
+  requireSessionProxy,
   safeError,
   withCompletionTelemetry,
 } from "./http.ts";
+
+const projectRequest = (apiKey?: string, proxySecret?: string) =>
+  new Request("http://localhost", {
+    headers: {
+      ...(apiKey ? { apikey: apiKey } : {}),
+      ...(proxySecret ? { "x-piba-proxy-secret": proxySecret } : {}),
+    },
+  });
+
+const envGetter =
+  (values: Record<string, string | undefined>) => (name: string) =>
+    values[name];
+
+Deno.test("accepts configured modern publishable and legacy anon project keys", async () => {
+  const modern = "sb_publishable_modern-key";
+  const legacy = "legacy-anon-key";
+  const getEnv = envGetter({
+    SUPABASE_PUBLISHABLE_KEYS: JSON.stringify({ default: modern }),
+    SUPABASE_ANON_KEY: legacy,
+  });
+
+  await requireProjectApiKey(projectRequest(modern), getEnv);
+  await requireProjectApiKey(projectRequest(legacy), getEnv);
+});
+
+Deno.test("rejects wrong, missing, and malformed project key configuration", async () => {
+  const valid = envGetter({
+    SUPABASE_PUBLISHABLE_KEYS: JSON.stringify({
+      default: "sb_publishable_expected",
+    }),
+    SUPABASE_ANON_KEY: "legacy-anon-key",
+  });
+  await assertRejects(() =>
+    requireProjectApiKey(projectRequest("wrong"), valid)
+  );
+  await assertRejects(() => requireProjectApiKey(projectRequest(), valid));
+  await assertRejects(() =>
+    requireProjectApiKey(projectRequest("legacy-anon-key"), envGetter({}))
+  );
+  for (
+    const malformed of [
+      "not-json",
+      "null",
+      "[]",
+      "{}",
+      JSON.stringify({ default: "publishable-key" }),
+    ]
+  ) {
+    await assertRejects(() =>
+      requireProjectApiKey(
+        projectRequest("legacy-anon-key"),
+        envGetter({
+          SUPABASE_PUBLISHABLE_KEYS: malformed,
+          SUPABASE_ANON_KEY: "legacy-anon-key",
+        }),
+      )
+    );
+  }
+});
+
+Deno.test("requires the proxy secret independently of a valid project key", async () => {
+  const previousAnon = Deno.env.get("SUPABASE_ANON_KEY");
+  const previousPublishable = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");
+  const previousProxy = Deno.env.get("PIBA_PROXY_SECRET");
+  try {
+    Deno.env.set(
+      "SUPABASE_PUBLISHABLE_KEYS",
+      JSON.stringify({
+        default: "sb_publishable_expected",
+      }),
+    );
+    Deno.env.delete("SUPABASE_ANON_KEY");
+    Deno.env.set("PIBA_PROXY_SECRET", "proxy-secret");
+    await requireSessionProxy(
+      projectRequest("sb_publishable_expected", "proxy-secret"),
+    );
+    await assertRejects(() =>
+      requireSessionProxy(projectRequest("sb_publishable_expected", "wrong"))
+    );
+  } finally {
+    if (previousAnon === undefined) Deno.env.delete("SUPABASE_ANON_KEY");
+    else Deno.env.set("SUPABASE_ANON_KEY", previousAnon);
+    if (previousPublishable === undefined) {
+      Deno.env.delete("SUPABASE_PUBLISHABLE_KEYS");
+    } else Deno.env.set("SUPABASE_PUBLISHABLE_KEYS", previousPublishable);
+    if (previousProxy === undefined) Deno.env.delete("PIBA_PROXY_SECRET");
+    else Deno.env.set("PIBA_PROXY_SECRET", previousProxy);
+  }
+});
 
 Deno.test("rejects a disallowed browser origin before handler work", async () => {
   const response = handleCors(
@@ -158,6 +249,7 @@ Deno.test("limits JSON request bodies and returns generic errors with a request 
   );
   const response = safeError("request-1");
   assertEquals(response.status, 400);
+  assertEquals(response.headers.get("x-request-id"), "request-1");
   assertEquals(await response.json(), {
     error: "Invalid request",
     requestId: "request-1",
